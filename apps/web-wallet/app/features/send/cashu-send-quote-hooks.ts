@@ -2,10 +2,11 @@ import { getCashuWallet, sumProofs } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type {
   CashuAccount,
+  CashuLightningQuote,
   CashuSendQuote,
   DestinationDetails,
-  SendQuoteRequest,
 } from '@agicash/wallet-sdk';
+import { SessionEndedError } from '@agicash/wallet-sdk';
 import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
@@ -26,8 +27,8 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import type Big from 'big.js';
 import { useMemo, useState } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MeltQuoteSubscriptionManager } from '~/lib/cashu/melt-quote-subscription-manager';
 import {
@@ -109,8 +110,6 @@ export function useUnresolvedCashuSendQuotesCache() {
 }
 
 export function useCreateCashuLightningSendQuote() {
-  const cashuSendQuoteService = useCashuSendQuoteService();
-
   return useMutation({
     scope: {
       id: 'create-cashu-lightning-send-quote',
@@ -119,20 +118,20 @@ export function useCreateCashuLightningSendQuote() {
       account,
       amount,
       paymentRequest,
-      exchangeRate,
     }: {
       account: CashuAccount;
       paymentRequest: string;
       amount?: Money;
-      exchangeRate?: Big;
     }) =>
-      cashuSendQuoteService.getLightningQuote({
+      sdk.send.cashu.getLightningQuote({
         account,
         amount,
         paymentRequest,
-        exchangeRate,
       }),
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof DomainError) {
         return false;
       }
@@ -145,11 +144,9 @@ export function useInitiateCashuSendQuote({
   onSuccess,
   onError,
 }: {
-  onSuccess: (data: CashuSendQuote) => void;
+  onSuccess: (data: { transactionId: string }) => void;
   onError: (error: Error) => void;
 }) {
-  const userId = useUser((user) => user.id);
-  const cashuSendQuoteService = useCashuSendQuoteService();
   const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
@@ -163,14 +160,15 @@ export function useInitiateCashuSendQuote({
       destinationDetails,
     }: {
       accountId: string;
-      sendQuote: SendQuoteRequest;
+      sendQuote: CashuLightningQuote;
       destinationDetails?: DestinationDetails;
     }) => {
+      // Read per attempt: a ConcurrencyError retry must reselect proofs from
+      // the latest cached account, not the one the first attempt saw.
       const account = getCashuAccount(accountId);
-      return cashuSendQuoteService.createSendQuote({
-        userId,
+      return sdk.send.cashu.createQuote({
         account,
-        sendQuote,
+        lightningQuote: sendQuote,
         destinationDetails,
       });
     },
@@ -179,6 +177,9 @@ export function useInitiateCashuSendQuote({
     },
     onError: onError,
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof ConcurrencyError) {
         return true;
       }

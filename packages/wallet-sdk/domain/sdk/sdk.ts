@@ -28,6 +28,7 @@ import { ensureBreezWasm } from '../../lib/spark/wasm';
 import { createAccountsApi } from '../accounts/accounts-api';
 import { createContactsApi } from '../contacts/contacts-api';
 import { createReceiveApi } from '../receive/receive-api';
+import { createSendApi } from '../send/send-api';
 import { createTransactionsApi } from '../transactions/transactions-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
@@ -53,11 +54,9 @@ export class AgicashSdk implements Sdk {
   readonly contacts: ContactsApi;
   readonly transactions: TransactionsApi;
   readonly receive: ReceiveApi;
+  readonly send: SendApi;
   readonly events: WalletEvents;
 
-  get send(): SendApi {
-    throw new NotImplementedError('send');
-  }
   get transfer(): TransferApi {
     throw new NotImplementedError('transfer');
   }
@@ -184,6 +183,11 @@ export class AgicashSdk implements Sdk {
       getSession: getLiveSession,
       keys,
       getAccountRepository: accounts.getRepository,
+    });
+    this.send = createSendApi({
+      db,
+      getSession: getLiveSession,
+      keys,
     });
     this.events = events;
   }

@@ -201,41 +201,44 @@ export class CashuSendQuoteService {
   /**
    * Creates the send quote but does not initiate the send.
    */
-  async createSendQuote({
-    userId,
-    account,
-    sendQuote,
-    destinationDetails,
-    purpose,
-    transferId,
-  }: {
-    /**
-     * ID of the sender.
-     */
-    userId: string;
-    /**
-     * The account to send the money from.
-     */
-    account: CashuAccount;
-    /**
-     * The send quote to create.
-     */
-    sendQuote: SendQuoteRequest;
-    /**
-     * The destination details of the send, like the contact ID or lightning address used to fetch the payment request.
-     * This will be undefined if the send is directly paying a bolt11.
-     */
-    destinationDetails?: DestinationDetails;
-    /**
-     * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
-     * When not provided, the transaction will be created with PAYMENT purpose.
-     */
-    purpose?: TransactionPurpose;
-    /**
-     * UUID linking paired send/receive transactions in a transfer.
-     */
-    transferId?: string;
-  }) {
+  async createSendQuote(
+    {
+      userId,
+      account,
+      sendQuote,
+      destinationDetails,
+      purpose,
+      transferId,
+    }: {
+      /**
+       * ID of the sender.
+       */
+      userId: string;
+      /**
+       * The account to send the money from.
+       */
+      account: CashuAccount;
+      /**
+       * The send quote to create.
+       */
+      sendQuote: SendQuoteRequest;
+      /**
+       * The destination details of the send, like the contact ID or lightning address used to fetch the payment request.
+       * This will be undefined if the send is directly paying a bolt11.
+       */
+      destinationDetails?: DestinationDetails;
+      /**
+       * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+       * When not provided, the transaction will be created with PAYMENT purpose.
+       */
+      purpose?: TransactionPurpose;
+      /**
+       * UUID linking paired send/receive transactions in a transfer.
+       */
+      transferId?: string;
+    },
+    options?: { abortSignal?: AbortSignal },
+  ) {
     const meltQuote = sendQuote.meltQuote;
     const expiresAt = new Date(meltQuote.expiry * 1000);
     const now = new Date();
@@ -300,26 +303,29 @@ export class CashuSendQuoteService {
       decoded: { paymentHash },
     } = decodeBolt11(sendQuote.paymentRequest);
 
-    return this.cashuSendRepository.create({
-      userId: userId,
-      accountId: account.id,
-      paymentRequest: sendQuote.paymentRequest,
-      paymentHash,
-      expiresAt: expiresAt.toISOString(),
-      amountRequested: sendQuote.amountRequested,
-      amountRequestedInMsat: sendQuote.amountRequestedInBtc.toNumber('msat'),
-      amountToReceive,
-      lightningFeeReserve,
-      cashuFee,
-      quoteId: meltQuote.quote,
-      keysetId,
-      numberOfChangeOutputs,
-      proofsToSend: proofs,
-      amountReserved,
-      destinationDetails,
-      purpose,
-      transferId,
-    });
+    return this.cashuSendRepository.create(
+      {
+        userId: userId,
+        accountId: account.id,
+        paymentRequest: sendQuote.paymentRequest,
+        paymentHash,
+        expiresAt: expiresAt.toISOString(),
+        amountRequested: sendQuote.amountRequested,
+        amountRequestedInMsat: sendQuote.amountRequestedInBtc.toNumber('msat'),
+        amountToReceive,
+        lightningFeeReserve,
+        cashuFee,
+        quoteId: meltQuote.quote,
+        keysetId,
+        numberOfChangeOutputs,
+        proofsToSend: proofs,
+        amountReserved,
+        destinationDetails,
+        purpose,
+        transferId,
+      },
+      options,
+    );
   }
 
   /**

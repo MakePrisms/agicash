@@ -1,3 +1,5 @@
+import type { Money } from '@agicash/money';
+import type { CashuAccount } from '../accounts/account';
 import type { CashuLightningQuote } from '../send/cashu-send-quote-service';
 import type { CashuSwapQuote } from '../send/cashu-send-swap-service';
 import type { DestinationDetails } from '../send/send-destination';
@@ -33,8 +35,29 @@ export type SendApi = {
   };
 };
 
-export type GetCashuSendLightningQuoteParams = unknown; // step 13 (cashu send quote)
-export type CreateCashuSendQuoteParams = unknown; // step 13 (cashu send quote)
+export type GetCashuSendLightningQuoteParams = {
+  /** The cashu account to send from. */
+  account: CashuAccount;
+  /** The bolt11 invoice to pay. Amountless invoices are rejected for cashu accounts. */
+  paymentRequest: string;
+  /**
+   * The amount the user entered, returned as `amountRequested`. The invoice
+   * amount always determines what is paid.
+   */
+  amount?: Money;
+};
+
+export type CreateCashuSendQuoteParams = {
+  /** The cashu account to send from. Must be the account the quote was created for. */
+  account: CashuAccount;
+  /** The lightning quote to create the send quote from (see `getLightningQuote`). */
+  lightningQuote: CashuLightningQuote;
+  /**
+   * How the invoice was obtained (lightning address or contact), stored with
+   * the send. Omit when paying a bolt11 directly.
+   */
+  destinationDetails?: DestinationDetails;
+};
 export type GetCashuSwapQuoteParams = unknown; // step 14 (cashu send swap)
 export type CreateCashuSwapParams = unknown; // step 14 (cashu send swap)
 export type CreateCashuSwapResult = unknown; // step 14 (cashu send swap)
