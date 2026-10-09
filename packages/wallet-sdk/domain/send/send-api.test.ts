@@ -1102,6 +1102,11 @@ describe('createSendApi', () => {
         paymentRequest: fixtureInvoice,
         amount,
       });
+      expect(Object.keys(captured ?? {}).sort()).toEqual([
+        'account',
+        'amount',
+        'paymentRequest',
+      ]);
       expect(captured?.account).toBe(account);
       expect(captured?.amount).toBe(amount);
       expect(result).toBe(lightningQuote);
@@ -1205,6 +1210,48 @@ describe('createSendApi', () => {
 
       await expect(promise).rejects.toBeInstanceOf(DomainError);
       await expect(promise).rejects.toThrow('Lightning invoice has expired');
+      expect(prepareCalls).toBe(0);
+    });
+
+    it('builds the default repository from the memoized session encryption with no new key reads', async () => {
+      let privateKeyReads = 0;
+      let publicKeyReads = 0;
+      let prepareCalls = 0;
+      const keys = createSessionKeys({
+        readEncryptionPrivateKey: async () => {
+          privateKeyReads += 1;
+          return new Uint8Array(32).fill(7);
+        },
+        readEncryptionPublicKey: async () => {
+          publicKeyReads += 1;
+          return 'pub';
+        },
+      });
+      await keys.getEncryption();
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+      });
+
+      await expect(
+        api.spark.getLightningQuote({
+          account: sparkDomain({
+            wallet: {
+              prepareSendPayment: async () => {
+                prepareCalls += 1;
+                return {
+                  paymentMethod: { type: 'bolt11Invoice', lightningFeeSats: 1 },
+                };
+              },
+            },
+          }),
+          paymentRequest: fixtureInvoice,
+        }),
+      ).rejects.toThrow('Lightning invoice has expired');
+      expect(privateKeyReads).toBe(1);
+      expect(publicKeyReads).toBe(1);
       expect(prepareCalls).toBe(0);
     });
   });
@@ -1355,8 +1402,11 @@ describe('createSendApi', () => {
     it('forwards the session abort signal to the repository through the default service without reading the spark mnemonic', async () => {
       let capturedArgs: Record<string, unknown> | undefined;
       let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      let mnemonicReads = 0;
+      let walletCalls = 0;
       const keys = createSessionKeys({
         readSparkMnemonic: async () => {
+          mnemonicReads += 1;
           throw new Error('spark mnemonic must not be read');
         },
       });
@@ -1380,6 +1430,7 @@ describe('createSendApi', () => {
       const account = sparkDomain({
         wallet: {
           prepareSendPayment: async () => {
+            walletCalls += 1;
             throw new Error('wallet must not be called on create');
           },
         },
@@ -1398,6 +1449,8 @@ describe('createSendApi', () => {
       expect(capturedArgs?.paymentHash).toBe(fixturePaymentHash);
       expect(capturedArgs?.purpose).toBeUndefined();
       expect(capturedArgs?.transferId).toBeUndefined();
+      expect(mnemonicReads).toBe(0);
+      expect(walletCalls).toBe(0);
     });
 
     it('rejects an expired quote through the default service with no write', async () => {

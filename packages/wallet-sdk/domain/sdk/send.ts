@@ -77,6 +77,7 @@ export type CreateCashuSwapResult = {
   /** The created send swap; the token is produced in the background. */
   swap: CashuSendSwap;
 };
+
 export type GetSparkSendLightningQuoteParams = {
   /** The spark account to send from. */
   account: SparkAccount;
