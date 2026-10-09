@@ -30,6 +30,7 @@ import { createContactsApi } from '../contacts/contacts-api';
 import { createReceiveApi } from '../receive/receive-api';
 import { createSendApi } from '../send/send-api';
 import { createTransactionsApi } from '../transactions/transactions-api';
+import { createTransferApi } from '../transfer/transfer-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
@@ -55,11 +56,9 @@ export class AgicashSdk implements Sdk {
   readonly transactions: TransactionsApi;
   readonly receive: ReceiveApi;
   readonly send: SendApi;
+  readonly transfer: TransferApi;
   readonly events: WalletEvents;
 
-  get transfer(): TransferApi {
-    throw new NotImplementedError('transfer');
-  }
   get featureFlags(): FeatureFlagsApi {
     throw new NotImplementedError('featureFlags');
   }
@@ -185,6 +184,12 @@ export class AgicashSdk implements Sdk {
       getAccountRepository: accounts.getRepository,
     });
     this.send = createSendApi({
+      db,
+      getSession: getLiveSession,
+      keys,
+      getAccountRepository: accounts.getRepository,
+    });
+    this.transfer = createTransferApi({
       db,
       getSession: getLiveSession,
       keys,
