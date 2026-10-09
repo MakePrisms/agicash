@@ -79,7 +79,7 @@ describe('AgicashSdk.init', () => {
 });
 
 describe('AgicashSdk namespaces', () => {
-  it('wires send: cashu quote and swap methods are callable; unlanded send members throw NotImplementedError', async () => {
+  it('wires send: cashu and spark methods are callable; resolveDestination and transfer throw NotImplementedError', async () => {
     const sdk = AgicashSdk.create(createConfig());
     try {
       expect(() => sdk.send).not.toThrow();
@@ -88,7 +88,8 @@ describe('AgicashSdk namespaces', () => {
       expect(typeof sdk.send.cashu.createQuote).toBe('function');
       expect(typeof sdk.send.cashu.getSwapQuote).toBe('function');
       expect(typeof sdk.send.cashu.createSwap).toBe('function');
-      expect(() => sdk.send.spark).toThrow(NotImplementedError);
+      expect(typeof sdk.send.spark.getLightningQuote).toBe('function');
+      expect(typeof sdk.send.spark.createQuote).toBe('function');
       expect(() => sdk.send.resolveDestination).toThrow(NotImplementedError);
       expect(() => sdk.transfer).toThrow(NotImplementedError);
     } finally {

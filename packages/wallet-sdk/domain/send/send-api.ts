@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import type { AgicashDb } from '../../db/database';
 import {
   NoSessionError,
@@ -13,6 +14,8 @@ import { CashuSendQuoteRepository } from './cashu-send-quote-repository';
 import { CashuSendQuoteService } from './cashu-send-quote-service';
 import { CashuSendSwapRepository } from './cashu-send-swap-repository';
 import { CashuSendSwapService } from './cashu-send-swap-service';
+import { SparkSendQuoteRepository } from './spark-send-quote-repository';
+import { SparkSendQuoteService } from './spark-send-quote-service';
 
 type Deps = {
   db: AgicashDb;
@@ -28,6 +31,10 @@ type Deps = {
   createSwapRepository?: () => Promise<CashuSendSwapRepository>;
   /** Test seam; defaults to building the swap service from the swap repository + a receive-swap service. */
   createSwapService?: () => Promise<CashuSendSwapService>;
+  /** Test seam; defaults to building the spark repository from db + session-keys encryption. */
+  createSparkRepository?: () => Promise<SparkSendQuoteRepository>;
+  /** Test seam; defaults to building the spark service from the spark repository. */
+  createSparkService?: () => Promise<SparkSendQuoteService>;
 };
 
 /** Creates the `send` SDK namespace. */
@@ -70,6 +77,16 @@ export function createSendApi(deps: Deps): SendApi {
         await getSwapRepository(),
         await getReceiveSwapService(),
       ));
+
+  const getSparkRepository =
+    deps.createSparkRepository ??
+    (async (): Promise<SparkSendQuoteRepository> =>
+      new SparkSendQuoteRepository(deps.db, await deps.keys.getEncryption()));
+
+  const getSparkService =
+    deps.createSparkService ??
+    (async (): Promise<SparkSendQuoteService> =>
+      new SparkSendQuoteService(await getSparkRepository()));
 
   return {
     get resolveDestination(): SendApi['resolveDestination'] {
@@ -135,8 +152,35 @@ export function createSendApi(deps: Deps): SendApi {
         return { swap };
       },
     },
-    get spark(): SendApi['spark'] {
-      throw new NotImplementedError('send.spark');
+    spark: {
+      getLightningQuote: async (params) => {
+        const signal = deps.keys.sessionSignal();
+        const service = await getSparkService();
+        if (signal.aborted) throw new SessionEndedError();
+        const quote = await service.getLightningSendQuote({
+          account: params.account,
+          paymentRequest: params.paymentRequest,
+          amount: params.amount as Money<'BTC'> | undefined,
+        });
+        if (signal.aborted) throw new SessionEndedError();
+        return quote;
+      },
+      createQuote: async (params) => {
+        const userId = requireUserId();
+        const signal = deps.keys.sessionSignal();
+        const service = await getSparkService();
+        if (signal.aborted) throw new SessionEndedError();
+        const quote = await service.createSendQuote(
+          {
+            userId,
+            account: params.account,
+            quote: params.lightningQuote,
+          },
+          { abortSignal: signal },
+        );
+        if (signal.aborted) throw new SessionEndedError();
+        return { transactionId: quote.transactionId };
+      },
     },
   };
 }
