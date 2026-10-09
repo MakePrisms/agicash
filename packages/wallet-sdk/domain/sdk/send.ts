@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import type { CashuAccount } from '../accounts/account';
+import type { CashuAccount, SparkAccount } from '../accounts/account';
 import type { CashuLightningQuote } from '../send/cashu-send-quote-service';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { CashuSwapQuote } from '../send/cashu-send-swap-service';
@@ -77,5 +77,21 @@ export type CreateCashuSwapResult = {
   /** The created send swap; the token is produced in the background. */
   swap: CashuSendSwap;
 };
-export type GetSparkSendLightningQuoteParams = unknown; // step 15 (spark send quote)
-export type CreateSparkSendQuoteParams = unknown; // step 15 (spark send quote)
+export type GetSparkSendLightningQuoteParams = {
+  /** The spark account to send from. */
+  account: SparkAccount;
+  /** The bolt11 invoice to pay. */
+  paymentRequest: string;
+  /**
+   * Amount to send. Required for amountless invoices; ignored when the
+   * invoice carries an amount.
+   */
+  amount?: Money;
+};
+
+export type CreateSparkSendQuoteParams = {
+  /** The spark account to send from. Must be the account the quote was created for. */
+  account: SparkAccount;
+  /** The lightning quote to create the send quote from (see `getLightningQuote`). */
+  lightningQuote: SparkLightningQuote;
+};

@@ -9,7 +9,10 @@ import {
   NotImplementedError,
   SessionEndedError,
 } from '../../lib/error';
-import type { CashuAccount as DomainCashuAccount } from '../accounts/account';
+import type {
+  CashuAccount as DomainCashuAccount,
+  SparkAccount,
+} from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AuthSession, AuthUser } from '../sdk';
 import { createSessionKeys } from '../sdk/session-keys';
@@ -27,6 +30,12 @@ import type {
 } from './cashu-send-swap-service';
 import { createSendApi } from './send-api';
 import type { DestinationDetails } from './send-destination';
+import type { SparkSendQuote } from './spark-send-quote';
+import type { SparkSendQuoteRepository } from './spark-send-quote-repository';
+import type {
+  SparkLightningQuote,
+  SparkSendQuoteService,
+} from './spark-send-quote-service';
 
 const authUser = (id: string): AuthUser =>
   ({
@@ -157,6 +166,45 @@ const makeSendSwap = (): CashuSendSwap =>
     inputProofs: [sendProof],
   }) as unknown as CashuSendSwap;
 
+const sparkDomain = (
+  overrides: Partial<Record<string, unknown>> = {},
+): SparkAccount =>
+  ({
+    id: 'acct-spark',
+    name: 'Spark BTC',
+    type: 'spark',
+    currency: 'BTC',
+    balance: sats(1000),
+    wallet: { marker: 'spark-wallet' },
+    ...overrides,
+  }) as unknown as SparkAccount;
+
+const makeSparkLightningQuote = (): SparkLightningQuote =>
+  ({
+    paymentRequest: fixtureInvoice,
+    paymentHash: fixturePaymentHash,
+    amountRequested: sats(50),
+    amountRequestedInBtc: sats(50),
+    amountToReceive: sats(50),
+    estimatedLightningFee: sats(2),
+    estimatedTotalFee: sats(2),
+    estimatedTotalAmount: sats(52),
+    paymentRequestIsAmountless: false,
+    expiresAt: null,
+  }) as unknown as SparkLightningQuote;
+
+const makeSparkSendQuote = (): SparkSendQuote =>
+  ({
+    id: 'ssq-1',
+    transactionId: 'tx-spark-1',
+    userId: 'user-x',
+    accountId: 'acct-spark',
+    state: 'UNPAID',
+    version: 1,
+    paymentRequest: fixtureInvoice,
+    paymentHash: fixturePaymentHash,
+  }) as unknown as SparkSendQuote;
+
 const exactProofsWallet = {
   selectProofsToSend: (proofs: Proof[]) => ({ send: proofs, keep: [] }),
   getFeesForProofs: () => 0,
@@ -178,6 +226,8 @@ const makeApi = (deps: {
   service?: Partial<CashuSendQuoteService>;
   swapRepository?: Partial<CashuSendSwapRepository>;
   swapService?: Partial<CashuSendSwapService>;
+  sparkRepository?: Partial<SparkSendQuoteRepository>;
+  sparkService?: Partial<SparkSendQuoteService>;
 }) =>
   createSendApi({
     db: {} as unknown as AgicashDb,
@@ -192,6 +242,10 @@ const makeApi = (deps: {
       (deps.swapRepository ?? {}) as unknown as CashuSendSwapRepository,
     createSwapService: async () =>
       (deps.swapService ?? {}) as unknown as CashuSendSwapService,
+    createSparkRepository: async () =>
+      (deps.sparkRepository ?? {}) as unknown as SparkSendQuoteRepository,
+    createSparkService: async () =>
+      (deps.sparkService ?? {}) as unknown as SparkSendQuoteService,
   });
 
 describe('createSendApi', () => {
@@ -1013,6 +1067,396 @@ describe('createSendApi', () => {
     });
   });
 
+  describe('spark.getLightningQuote', () => {
+    it('passes the account, payment request, and amount to the service and returns its quote without calling getSession', async () => {
+      let captured: Record<string, unknown> | undefined;
+      let getSessionCalls = 0;
+      const account = sparkDomain();
+      const amount = sendSats(50);
+      const lightningQuote = makeSparkLightningQuote();
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => {
+          getSessionCalls += 1;
+          return { isLoggedIn: false };
+        },
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkService: async () =>
+          ({
+            getLightningSendQuote: (async (params: Record<string, unknown>) => {
+              captured = params;
+              return lightningQuote;
+            }) as unknown as SparkSendQuoteService['getLightningSendQuote'],
+          }) as unknown as SparkSendQuoteService,
+      });
+
+      const result = await api.spark.getLightningQuote({
+        account,
+        paymentRequest: fixtureInvoice,
+        amount,
+      });
+
+      expect(captured).toEqual({
+        account,
+        paymentRequest: fixtureInvoice,
+        amount,
+      });
+      expect(captured?.account).toBe(account);
+      expect(captured?.amount).toBe(amount);
+      expect(result).toBe(lightningQuote);
+      expect(getSessionCalls).toBe(0);
+    });
+
+    it('rejects with SessionEndedError and never calls the service when the session ends during service construction', async () => {
+      const keys = createSessionKeys();
+      let getLightningSendQuoteCalls = 0;
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkService: async () => {
+          // The session ends between the signal capture and the service call.
+          keys.reset();
+          return {
+            getLightningSendQuote: (async () => {
+              getLightningSendQuoteCalls += 1;
+              return makeSparkLightningQuote();
+            }) as unknown as SparkSendQuoteService['getLightningSendQuote'],
+          } as unknown as SparkSendQuoteService;
+        },
+      });
+
+      await expect(
+        api.spark.getLightningQuote({
+          account: sparkDomain(),
+          paymentRequest: fixtureInvoice,
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+      expect(getLightningSendQuoteCalls).toBe(0);
+    });
+
+    it('rejects with SessionEndedError when the session ends during the quote', async () => {
+      const keys = createSessionKeys();
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        keys,
+        sparkService: {
+          getLightningSendQuote: (async () => {
+            keys.reset();
+            return makeSparkLightningQuote();
+          }) as unknown as SparkSendQuoteService['getLightningSendQuote'],
+        },
+      });
+
+      await expect(
+        api.spark.getLightningQuote({
+          account: sparkDomain(),
+          paymentRequest: fixtureInvoice,
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+    });
+
+    it('propagates a service rejection as the same instance', async () => {
+      const error = new DomainError('Invalid lightning invoice');
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        sparkService: {
+          getLightningSendQuote: (async () => {
+            throw error;
+          }) as unknown as SparkSendQuoteService['getLightningSendQuote'],
+        },
+      });
+
+      await expect(
+        api.spark.getLightningQuote({
+          account: sparkDomain(),
+          paymentRequest: fixtureInvoice,
+        }),
+      ).rejects.toBe(error);
+    });
+
+    it('builds the default service and rejects an expired invoice with no wallet call', async () => {
+      let prepareCalls = 0;
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkRepository: async () =>
+          ({}) as unknown as SparkSendQuoteRepository,
+      });
+      const account = sparkDomain({
+        wallet: {
+          prepareSendPayment: async () => {
+            prepareCalls += 1;
+            return {
+              paymentMethod: { type: 'bolt11Invoice', lightningFeeSats: 1 },
+            };
+          },
+        },
+      });
+
+      const promise = api.spark.getLightningQuote({
+        account,
+        paymentRequest: fixtureInvoice,
+      });
+
+      await expect(promise).rejects.toBeInstanceOf(DomainError);
+      await expect(promise).rejects.toThrow('Lightning invoice has expired');
+      expect(prepareCalls).toBe(0);
+    });
+  });
+
+  describe('spark.createQuote', () => {
+    it('throws NoSessionError without a session, before any construction', async () => {
+      let createSparkServiceCalls = 0;
+      let createSparkRepositoryCalls = 0;
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => ({ isLoggedIn: false }),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkRepository: async () => {
+          createSparkRepositoryCalls += 1;
+          return {} as unknown as SparkSendQuoteRepository;
+        },
+        createSparkService: async () => {
+          createSparkServiceCalls += 1;
+          return {} as unknown as SparkSendQuoteService;
+        },
+      });
+
+      await expect(
+        api.spark.createQuote({
+          account: sparkDomain(),
+          lightningQuote: makeSparkLightningQuote(),
+        }),
+      ).rejects.toBeInstanceOf(NoSessionError);
+      expect(createSparkServiceCalls).toBe(0);
+      expect(createSparkRepositoryCalls).toBe(0);
+    });
+
+    it('passes the session userId, the given account and quote, and the abort signal to the service, and returns only the transaction id', async () => {
+      let captured: Record<string, unknown> | undefined;
+      let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      const keys = createSessionKeys();
+      const account = sparkDomain();
+      const lightningQuote = makeSparkLightningQuote();
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        keys,
+        sparkService: {
+          createSendQuote: (async (
+            params: Record<string, unknown>,
+            options?: { abortSignal?: AbortSignal },
+          ) => {
+            captured = params;
+            capturedOptions = options;
+            return makeSparkSendQuote();
+          }) as unknown as SparkSendQuoteService['createSendQuote'],
+        },
+      });
+
+      const result = await api.spark.createQuote({
+        account,
+        lightningQuote,
+      });
+
+      expect(captured).toEqual({
+        userId: 'user-x',
+        account,
+        quote: lightningQuote,
+      });
+      expect(captured?.account).toBe(account);
+      expect(captured?.quote).toBe(lightningQuote);
+      expect(Object.keys(captured ?? {}).sort()).toEqual([
+        'account',
+        'quote',
+        'userId',
+      ]);
+      expect(capturedOptions?.abortSignal).toBe(keys.sessionSignal());
+      expect(result).toStrictEqual({ transactionId: 'tx-spark-1' });
+      expect(Object.keys(result)).toEqual(['transactionId']);
+    });
+
+    it('rejects with SessionEndedError and never calls the service when the session ends during service construction', async () => {
+      const keys = createSessionKeys();
+      let createSendQuoteCalls = 0;
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkService: async () => {
+          // The session ends between the signal capture and the write.
+          keys.reset();
+          return {
+            createSendQuote: (async () => {
+              createSendQuoteCalls += 1;
+              return makeSparkSendQuote();
+            }) as unknown as SparkSendQuoteService['createSendQuote'],
+          } as unknown as SparkSendQuoteService;
+        },
+      });
+
+      await expect(
+        api.spark.createQuote({
+          account: sparkDomain(),
+          lightningQuote: makeSparkLightningQuote(),
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+      expect(createSendQuoteCalls).toBe(0);
+    });
+
+    it('rejects with SessionEndedError when the session ends during the write', async () => {
+      const keys = createSessionKeys();
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        keys,
+        sparkService: {
+          createSendQuote: (async () => {
+            keys.reset();
+            return makeSparkSendQuote();
+          }) as unknown as SparkSendQuoteService['createSendQuote'],
+        },
+      });
+
+      await expect(
+        api.spark.createQuote({
+          account: sparkDomain(),
+          lightningQuote: makeSparkLightningQuote(),
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+    });
+
+    it('propagates a DomainError from the service as the same instance', async () => {
+      const error = new DomainError(
+        'A payment for this invoice is already being processed or was completed',
+      );
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        sparkService: {
+          createSendQuote: (async () => {
+            throw error;
+          }) as unknown as SparkSendQuoteService['createSendQuote'],
+        },
+      });
+
+      await expect(
+        api.spark.createQuote({
+          account: sparkDomain(),
+          lightningQuote: makeSparkLightningQuote(),
+        }),
+      ).rejects.toBe(error);
+    });
+
+    it('forwards the session abort signal to the repository through the default service without reading the spark mnemonic', async () => {
+      let capturedArgs: Record<string, unknown> | undefined;
+      let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      const keys = createSessionKeys({
+        readSparkMnemonic: async () => {
+          throw new Error('spark mnemonic must not be read');
+        },
+      });
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkRepository: async () =>
+          ({
+            create: async (
+              args: Record<string, unknown>,
+              options?: { abortSignal?: AbortSignal },
+            ) => {
+              capturedArgs = args;
+              capturedOptions = options;
+              return makeSparkSendQuote();
+            },
+          }) as unknown as SparkSendQuoteRepository,
+      });
+      const account = sparkDomain({
+        wallet: {
+          prepareSendPayment: async () => {
+            throw new Error('wallet must not be called on create');
+          },
+        },
+      });
+      const lightningQuote = makeSparkLightningQuote();
+
+      const result = await api.spark.createQuote({
+        account,
+        lightningQuote,
+      });
+
+      expect(result).toStrictEqual({ transactionId: 'tx-spark-1' });
+      expect(capturedOptions?.abortSignal).toBe(keys.sessionSignal());
+      expect(capturedArgs?.userId).toBe('user-x');
+      expect(capturedArgs?.accountId).toBe('acct-spark');
+      expect(capturedArgs?.paymentHash).toBe(fixturePaymentHash);
+      expect(capturedArgs?.purpose).toBeUndefined();
+      expect(capturedArgs?.transferId).toBeUndefined();
+    });
+
+    it('rejects an expired quote through the default service with no write', async () => {
+      let createCalls = 0;
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkRepository: async () =>
+          ({
+            create: async () => {
+              createCalls += 1;
+              return makeSparkSendQuote();
+            },
+          }) as unknown as SparkSendQuoteRepository,
+      });
+      const lightningQuote = {
+        ...makeSparkLightningQuote(),
+        expiresAt: new Date(Date.now() - 60_000),
+      } as unknown as SparkLightningQuote;
+
+      const promise = api.spark.createQuote({
+        account: sparkDomain(),
+        lightningQuote,
+      });
+
+      await expect(promise).rejects.toBeInstanceOf(DomainError);
+      await expect(promise).rejects.toThrow('Lightning invoice has expired');
+      expect(createCalls).toBe(0);
+    });
+
+    it('rejects insufficient balance through the default service with no write', async () => {
+      let createCalls = 0;
+      const api = createSendApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createSparkRepository: async () =>
+          ({
+            create: async () => {
+              createCalls += 1;
+              return makeSparkSendQuote();
+            },
+          }) as unknown as SparkSendQuoteRepository,
+      });
+
+      const promise = api.spark.createQuote({
+        account: sparkDomain({ balance: sats(10) }),
+        lightningQuote: makeSparkLightningQuote(),
+      });
+
+      await expect(promise).rejects.toBeInstanceOf(DomainError);
+      await expect(promise).rejects.toThrow('Insufficient balance');
+      expect(createCalls).toBe(0);
+    });
+  });
+
   describe('unimplemented members', () => {
     it('throws NotImplementedError on access to members owned by later slices', () => {
       const api = makeApi({ session: loggedIn('user-x') });
@@ -1023,8 +1467,8 @@ describe('createSendApi', () => {
       );
       expect(typeof api.cashu.getSwapQuote).toBe('function');
       expect(typeof api.cashu.createSwap).toBe('function');
-      expect(() => api.spark).toThrow(NotImplementedError);
-      expect(() => api.spark).toThrow('send.spark is not implemented yet.');
+      expect(typeof api.spark.getLightningQuote).toBe('function');
+      expect(typeof api.spark.createQuote).toBe('function');
     });
 
     it('does no construction or session work when built or when unimplemented members are accessed', () => {
@@ -1032,6 +1476,8 @@ describe('createSendApi', () => {
       let createServiceCalls = 0;
       let createSwapRepositoryCalls = 0;
       let createSwapServiceCalls = 0;
+      let createSparkRepositoryCalls = 0;
+      let createSparkServiceCalls = 0;
       let getSessionCalls = 0;
       let getAccountRepositoryCalls = 0;
       const api = createSendApi({
@@ -1061,18 +1507,30 @@ describe('createSendApi', () => {
           createSwapServiceCalls += 1;
           return {} as unknown as CashuSendSwapService;
         },
+        createSparkRepository: async () => {
+          createSparkRepositoryCalls += 1;
+          return {} as unknown as SparkSendQuoteRepository;
+        },
+        createSparkService: async () => {
+          createSparkServiceCalls += 1;
+          return {} as unknown as SparkSendQuoteService;
+        },
       });
 
       const cashu = api.cashu;
       expect(typeof cashu.getLightningQuote).toBe('function');
       expect(typeof cashu.getSwapQuote).toBe('function');
       expect(typeof cashu.createSwap).toBe('function');
+      const spark = api.spark;
+      expect(typeof spark.getLightningQuote).toBe('function');
+      expect(typeof spark.createQuote).toBe('function');
       expect(() => api.resolveDestination).toThrow(NotImplementedError);
-      expect(() => api.spark).toThrow(NotImplementedError);
       expect(createRepositoryCalls).toBe(0);
       expect(createServiceCalls).toBe(0);
       expect(createSwapRepositoryCalls).toBe(0);
       expect(createSwapServiceCalls).toBe(0);
+      expect(createSparkRepositoryCalls).toBe(0);
+      expect(createSparkServiceCalls).toBe(0);
       expect(getSessionCalls).toBe(0);
       expect(getAccountRepositoryCalls).toBe(0);
     });

@@ -5,6 +5,7 @@ import type {
   SparkLightningQuote,
   SparkSendQuote,
 } from '@agicash/wallet-sdk';
+import { SessionEndedError } from '@agicash/wallet-sdk';
 import type { AgicashDbSparkSendQuote } from '@agicash/wallet-sdk/temporary';
 import {
   DomainError,
@@ -19,6 +20,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useLatest } from '~/lib/use-latest';
 import {
   useGetSparkAccount,
@@ -319,21 +321,22 @@ type CreateSparkLightningSendQuoteParams = {
  * Returns a mutation for creating a Spark Lightning send quote.
  */
 export function useCreateSparkLightningSendQuote() {
-  const sparkSendQuoteService = useSparkSendQuoteService();
-
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       account,
       paymentRequest,
       amount,
     }: CreateSparkLightningSendQuoteParams) => {
-      return sparkSendQuoteService.getLightningSendQuote({
+      return sdk.send.spark.getLightningQuote({
         account,
         paymentRequest,
-        amount: amount as Money<'BTC'>,
+        amount,
       });
     },
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof DomainError) {
         return false;
       }
@@ -362,21 +365,17 @@ export function useInitiateSparkSendQuote({
   onSuccess,
   onError,
 }: {
-  onSuccess: (data: SparkSendQuote) => void;
+  onSuccess: (data: { transactionId: string }) => void;
   onError: (error: Error) => void;
 }) {
-  const userId = useUser((user) => user.id);
-  const sparkSendQuoteService = useSparkSendQuoteService();
-
   return useMutation({
     scope: {
       id: 'create-spark-send-quote',
     },
     mutationFn: ({ account, quote }: CreateSparkSendQuoteParams) => {
-      return sparkSendQuoteService.createSendQuote({
-        userId,
+      return sdk.send.spark.createQuote({
         account,
-        quote,
+        lightningQuote: quote,
       });
     },
     onSuccess: (data) => {
@@ -384,6 +383,9 @@ export function useInitiateSparkSendQuote({
     },
     onError,
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof DomainError) {
         return false;
       }

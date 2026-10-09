@@ -197,13 +197,10 @@ export class SparkSendQuoteService {
    * Creates a send quote in UNPAID state.
    * The quote must be initiated with `initiateSend` to start the lightning payment.
    */
-  async createSendQuote({
-    userId,
-    account,
-    quote,
-    purpose,
-    transferId,
-  }: CreateSendQuoteParams): Promise<SparkSendQuote> {
+  async createSendQuote(
+    { userId, account, quote, purpose, transferId }: CreateSendQuoteParams,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<SparkSendQuote> {
     if (quote.expiresAt && quote.expiresAt < new Date()) {
       throw new DomainError('Lightning invoice has expired');
     }
@@ -221,18 +218,21 @@ export class SparkSendQuoteService {
       );
     }
 
-    return this.repository.create({
-      userId,
-      accountId: account.id,
-      amount: quote.amountRequestedInBtc as Money,
-      estimatedFee: quote.estimatedLightningFee as Money,
-      paymentRequest: quote.paymentRequest,
-      paymentHash: quote.paymentHash,
-      paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
-      expiresAt: quote.expiresAt,
-      purpose,
-      transferId,
-    });
+    return this.repository.create(
+      {
+        userId,
+        accountId: account.id,
+        amount: quote.amountRequestedInBtc as Money,
+        estimatedFee: quote.estimatedLightningFee as Money,
+        paymentRequest: quote.paymentRequest,
+        paymentHash: quote.paymentHash,
+        paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
+        expiresAt: quote.expiresAt,
+        purpose,
+        transferId,
+      },
+      options,
+    );
   }
 
   /**
