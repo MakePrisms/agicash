@@ -108,31 +108,33 @@ export class TransferService {
    * The task processing will pick up the created send quote and initiate the send.
    * @param userId - The ID of the user initiating the transfer.
    * @param quote - The quote to initiate the transfer with.
+   * @param options.abortSignal - Signal forwarded to both quote writes.
    * @returns The transfer ID and both send/receive transaction IDs.
    * @throws An error if the receive or send quote fails to persist.
    */
-  async initiateTransfer({
-    userId,
-    quote,
-  }: {
-    userId: string;
-    quote: TransferQuote;
-  }): Promise<{
+  async initiateTransfer(
+    { userId, quote }: { userId: string; quote: TransferQuote },
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<{
     transferId: string;
     receiveTransactionId: string;
     sendTransactionId: string;
   }> {
     const transferId = crypto.randomUUID();
     const { receive, send } = quote;
-
     const receiveQuote = await this.persistReceiveQuote(
       userId,
       receive,
       transferId,
+      options,
     );
-
     try {
-      const sendQuote = await this.persistSendQuote(userId, send, transferId);
+      const sendQuote = await this.persistSendQuote(
+        userId,
+        send,
+        transferId,
+        options,
+      );
       return {
         transferId,
         receiveTransactionId: receiveQuote.transactionId,
@@ -205,25 +207,32 @@ export class TransferService {
     userId: string,
     receive: TransferReceiveSide,
     transferId: string,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<CashuReceiveQuote | SparkReceiveQuote> {
     if (receive.account.type === 'cashu') {
-      return this.cashuReceiveQuoteService.createReceiveQuote({
+      return this.cashuReceiveQuoteService.createReceiveQuote(
+        {
+          userId,
+          account: receive.account,
+          lightningQuote: receive.lightningQuote as CashuReceiveLightningQuote,
+          receiveType: 'LIGHTNING',
+          purpose: 'TRANSFER',
+          transferId,
+        },
+        options,
+      );
+    }
+    return this.sparkReceiveQuoteService.createReceiveQuote(
+      {
         userId,
         account: receive.account,
-        lightningQuote: receive.lightningQuote as CashuReceiveLightningQuote,
+        lightningQuote: receive.lightningQuote as SparkReceiveLightningQuote,
         receiveType: 'LIGHTNING',
         purpose: 'TRANSFER',
         transferId,
-      });
-    }
-    return this.sparkReceiveQuoteService.createReceiveQuote({
-      userId,
-      account: receive.account,
-      lightningQuote: receive.lightningQuote as SparkReceiveLightningQuote,
-      receiveType: 'LIGHTNING',
-      purpose: 'TRANSFER',
-      transferId,
-    });
+      },
+      options,
+    );
   }
 
   private async failReceiveQuote(
@@ -247,28 +256,35 @@ export class TransferService {
     userId: string,
     send: TransferSendSide,
     transferId: string,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<{ transactionId: string }> {
     if (send.account.type === 'cashu') {
       const quote = send.lightningQuote as CashuLightningQuote;
-      return this.cashuSendQuoteService.createSendQuote({
+      return this.cashuSendQuoteService.createSendQuote(
+        {
+          userId,
+          account: send.account,
+          sendQuote: {
+            paymentRequest: quote.paymentRequest,
+            amountRequested: quote.amountRequested,
+            amountRequestedInBtc: quote.amountRequestedInBtc,
+            meltQuote: quote.meltQuote,
+          },
+          purpose: 'TRANSFER',
+          transferId,
+        },
+        options,
+      );
+    }
+    return this.sparkSendQuoteService.createSendQuote(
+      {
         userId,
         account: send.account,
-        sendQuote: {
-          paymentRequest: quote.paymentRequest,
-          amountRequested: quote.amountRequested,
-          amountRequestedInBtc: quote.amountRequestedInBtc,
-          meltQuote: quote.meltQuote,
-        },
+        quote: send.lightningQuote as SparkLightningQuote,
         purpose: 'TRANSFER',
         transferId,
-      });
-    }
-    return this.sparkSendQuoteService.createSendQuote({
-      userId,
-      account: send.account,
-      quote: send.lightningQuote as SparkLightningQuote,
-      purpose: 'TRANSFER',
-      transferId,
-    });
+      },
+      options,
+    );
   }
 }

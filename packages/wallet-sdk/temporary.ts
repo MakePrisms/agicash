@@ -138,5 +138,4 @@ export {
   validateLightningAddressFormat,
 } from './domain/send/validation';
 export { findMatchingOfferOrGiftCardAccount } from './domain/send/find-matching-offer-or-gift-card-account';
-export { TransferService } from './domain/transfer/transfer-service';
 export { TaskProcessingLockRepository } from './domain/wallet/task-processing-lock-repository';
