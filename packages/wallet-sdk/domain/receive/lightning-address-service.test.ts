@@ -546,9 +546,10 @@ describe('LightningAddressService', () => {
         getSparkWallet: sparkWallet.getSparkWallet,
       });
 
+      const amount = msat(1000);
       const result = await service.handleLnurlpCallback({
         userId: 'user-1',
-        amount: msat(1000),
+        amount,
         baseUrl: 'https://pay.example',
       });
 
@@ -566,6 +567,7 @@ describe('LightningAddressService', () => {
         'wallet',
       ]);
       expect(quoteArg?.wallet).toBe(walletMarker as never);
+      expect(quoteArg?.amount).toBe(amount as never);
       expect(quoteArg?.receiverIdentityPublicKey).toBe(
         alice.sparkIdentityPublicKey,
       );
@@ -581,6 +583,11 @@ describe('LightningAddressService', () => {
         'userEncryptionPublicKey',
         'userId',
       ]);
+      expect(createArg?.account).toBe(sparkAccount as never);
+      expect(createArg?.userId).toBe('user-1');
+      expect(createArg?.userEncryptionPublicKey).toBe(
+        alice.encryptionPublicKey,
+      );
 
       const payResult = result as LNURLPayResult;
       expect(payResult.pr).toBe('lnbc1spark');

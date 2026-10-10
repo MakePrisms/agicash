@@ -21,6 +21,9 @@ if (!supabaseServiceRoleKey) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
 }
 
+// Vite SSR re-evaluates this module on edit while the cached server-sdk.ts
+// keeps its instance slot, and import.meta.hot is undefined under
+// ssrLoadModule — dispose the previous instance so create() doesn't throw.
 const devHandle = globalThis as { agicashServerSdk?: AgicashServerSdk };
 devHandle.agicashServerSdk?.dispose();
 

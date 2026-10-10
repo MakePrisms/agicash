@@ -57,6 +57,9 @@ describe('AgicashServerSdk.create', () => {
         status: 'ERROR',
         reason: 'Internal server error',
       });
+      expect(errorSpy.mock.calls[0]?.[0]).toBe(
+        'Error processing LNURL-pay verify',
+      );
     } finally {
       errorSpy.mockRestore();
       next.dispose();
