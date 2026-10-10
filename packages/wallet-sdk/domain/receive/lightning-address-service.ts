@@ -15,6 +15,7 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import { z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
+import type { SparkNetwork } from '../../db/json-models/spark-account-details-db-data';
 import { NotFoundError } from '../../lib/error';
 import { type SparkWalletConfig, getSparkWallet } from '../../lib/spark/wallet';
 import { ExchangeRateService } from '../exchange-rate';
@@ -27,21 +28,6 @@ import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-reposit
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
 import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
 import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
-
-const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
-if (!sparkMnemonic) {
-  throw new Error('LNURL_SERVER_SPARK_MNEMONIC is not set');
-}
-
-const getSparkWalletMnemonic = (): Promise<string> => {
-  return Promise.resolve(sparkMnemonic);
-};
-
-const encryptionKey = process.env.LNURL_SERVER_ENCRYPTION_KEY || '';
-if (!encryptionKey) {
-  throw new Error('LNURL_SERVER_ENCRYPTION_KEY is not set');
-}
-const encryptionKeyBytes = hexToBytes(encryptionKey);
 
 /**
  * This data needed to verify the status of lnurl-pay request is encrypted
@@ -58,35 +44,75 @@ const LnurlVerifyQuoteDataSchema = z.discriminatedUnion('type', [
 
 type LnurlVerifyQuoteData = z.infer<typeof LnurlVerifyQuoteDataSchema>;
 
+export type LightningAddressServiceConfig = {
+  db: AgicashDb;
+  spark: {
+    apiKey: string;
+    network: SparkNetwork;
+    mnemonic: string;
+    storageDir: string;
+  };
+  /** Hex. `hexToBytes` runs in the constructor. */
+  quoteEncryptionKey: string;
+};
+
+export type LightningAddressDeps = {
+  userRepository?: Pick<ReadUserRepository, 'get' | 'getByUsername'>;
+  exchangeRateService?: Pick<ExchangeRateService, 'getRate'>;
+  createDefaultAccountRepository?: (
+    db: AgicashDb,
+    getSparkWalletMnemonic: () => Promise<string>,
+    sparkConfig: SparkWalletConfig,
+  ) => Pick<ReadUserDefaultAccountRepository, 'getDefaultAccount'>;
+  getCashuLightningQuote?: typeof getLightningQuote;
+  createCashuReceiveQuote?: (
+    params: Parameters<CashuReceiveQuoteServiceServer['createReceiveQuote']>[0],
+  ) => Promise<unknown>;
+  getSparkLightningQuote?: (
+    params: Parameters<SparkReceiveQuoteServiceServer['getLightningQuote']>[0],
+  ) => ReturnType<SparkReceiveQuoteServiceServer['getLightningQuote']>;
+  createSparkReceiveQuote?: (
+    params: Parameters<SparkReceiveQuoteServiceServer['createReceiveQuote']>[0],
+  ) => Promise<unknown>;
+  getCashuWallet?: typeof getCashuWallet;
+  getSparkWallet?: typeof getSparkWallet;
+};
+
+const defaultCreateDefaultAccountRepository = (
+  db: AgicashDb,
+  getSparkWalletMnemonic: () => Promise<string>,
+  sparkConfig: SparkWalletConfig,
+) =>
+  new ReadUserDefaultAccountRepository(db, getSparkWalletMnemonic, sparkConfig);
+
 export class LightningAddressService {
-  private baseUrl: string;
   private db: AgicashDb;
-  private userRepository: ReadUserRepository;
+  private userRepository: Pick<ReadUserRepository, 'get' | 'getByUsername'>;
   private minSendable: Money<'BTC'>;
   private maxSendable: Money<'BTC'>;
-  private exchangeRateService: ExchangeRateService;
-  /**
-   * A client can flag that they will not validate the invoice amount.
-   * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
-   * and we do not have to worry about exchange rate mismatches.
-   */
-  private bypassAmountValidation: boolean;
-  private sparkConfig: SparkWalletConfig;
+  private exchangeRateService: Pick<ExchangeRateService, 'getRate'>;
+  private apiKey: string;
+  private network: SparkNetwork;
+  private mnemonic: string;
+  private storageDir: string;
+  private encryptionKeyBytes: Uint8Array;
+  private deps: LightningAddressDeps;
 
   constructor(
-    request: Request,
-    db: AgicashDb,
-    sparkConfig: SparkWalletConfig,
-    options?: {
-      bypassAmountValidation?: boolean;
-    },
+    config: LightningAddressServiceConfig,
+    deps?: LightningAddressDeps,
   ) {
-    this.exchangeRateService = new ExchangeRateService();
-    this.db = db;
-    this.userRepository = new ReadUserRepository(db);
-    this.sparkConfig = sparkConfig;
-    this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
-    this.baseUrl = new URL(request.url).origin;
+    this.deps = deps ?? {};
+    this.exchangeRateService =
+      this.deps.exchangeRateService ?? new ExchangeRateService();
+    this.db = config.db;
+    this.userRepository =
+      this.deps.userRepository ?? new ReadUserRepository(config.db);
+    this.apiKey = config.spark.apiKey;
+    this.network = config.spark.network;
+    this.mnemonic = config.spark.mnemonic;
+    this.storageDir = config.spark.storageDir;
+    this.encryptionKeyBytes = hexToBytes(config.quoteEncryptionKey);
     this.minSendable = new Money({
       amount: 1,
       currency: 'BTC',
@@ -103,9 +129,11 @@ export class LightningAddressService {
    * Returns the LNURL-p params for the given username or
    * returns an error if the user is not found.
    */
-  async handleLud16Request(
-    username: string,
-  ): Promise<LNURLPayParams | LNURLError> {
+  async handleLud16Request(params: {
+    username: string;
+    baseUrl: string;
+  }): Promise<LNURLPayParams | LNURLError> {
+    const { username, baseUrl } = params;
     try {
       const user = await this.userRepository.getByUsername(username);
 
@@ -116,8 +144,8 @@ export class LightningAddressService {
         };
       }
 
-      const callback = `${this.baseUrl}/api/lnurlp/callback/${user.id}`;
-      const metadata = this.buildLnurlpMetadata(user.username);
+      const callback = `${baseUrl}/api/lnurlp/callback/${user.id}`;
+      const metadata = this.buildLnurlpMetadata(user.username, baseUrl);
 
       return {
         callback,
@@ -139,10 +167,19 @@ export class LightningAddressService {
    * Creates a new cashu receive quote for the given user and amount.
    * @returns the bolt11 invoice from the receive quote and the verify callback url.
    */
-  async handleLnurlpCallback(
-    userId: string,
-    amount: Money<'BTC'>,
-  ): Promise<LNURLPayResult | LNURLError> {
+  async handleLnurlpCallback(params: {
+    userId: string;
+    amount: Money<'BTC'>;
+    baseUrl: string;
+    /**
+     * A client can flag that they will not validate the invoice amount.
+     * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
+     * and we do not have to worry about exchange rate mismatches.
+     */
+    bypassAmountValidation?: boolean;
+  }): Promise<LNURLPayResult | LNURLError> {
+    const { userId, amount, baseUrl } = params;
+    const bypassAmountValidation = params.bypassAmountValidation ?? false;
     if (
       amount.lessThan(this.minSendable) ||
       amount.greaterThan(this.maxSendable)
@@ -163,18 +200,20 @@ export class LightningAddressService {
         };
       }
 
-      const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
-        this.db,
-        getSparkWalletMnemonic,
-        this.sparkConfig,
-      );
+      const userDefaultAccountRepository = (
+        this.deps.createDefaultAccountRepository ??
+        defaultCreateDefaultAccountRepository
+      )(this.db, () => Promise.resolve(this.mnemonic), {
+        storageDir: this.storageDir,
+        apiKey: this.apiKey,
+      });
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
       // However, if bypassAmountValidation is enabled, we can use the user's default currency
       // and perform exchange rate conversion to create an invoice in their preferred currency.
       const account = await userDefaultAccountRepository.getDefaultAccount(
         userId,
-        this.bypassAmountValidation ? undefined : 'BTC',
+        bypassAmountValidation ? undefined : 'BTC',
       );
 
       let amountToReceive = amount as Money;
@@ -188,15 +227,19 @@ export class LightningAddressService {
       if (account.type === 'cashu') {
         // cashu does not support setting the description_hash of an invoice.
         // Read more here: https://github.com/cashubtc/nuts/issues/110#issuecomment-2062898765
-        const lightningQuote = await getLightningQuote({
+        const lightningQuote = await (
+          this.deps.getCashuLightningQuote ?? getLightningQuote
+        )({
           wallet: account.wallet,
           amount: amountToReceive,
           xPub: user.cashuLockingXpub,
         });
 
-        const cashuReceiveQuoteService = new CashuReceiveQuoteServiceServer(
-          new CashuReceiveQuoteRepositoryServer(this.db),
-        );
+        const cashuReceiveQuoteService = this.deps.createCashuReceiveQuote
+          ? { createReceiveQuote: this.deps.createCashuReceiveQuote }
+          : new CashuReceiveQuoteServiceServer(
+              new CashuReceiveQuoteRepositoryServer(this.db),
+            );
 
         await cashuReceiveQuoteService.createReceiveQuote({
           userId,
@@ -214,16 +257,23 @@ export class LightningAddressService {
 
         return {
           pr: lightningQuote.mintQuote.request,
-          verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
+          verify: `${baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
           routes: [],
         };
       }
 
-      const sparkReceiveQuoteService = new SparkReceiveQuoteServiceServer(
-        new SparkReceiveQuoteRepositoryServer(this.db),
-      );
+      const { getSparkLightningQuote, createSparkReceiveQuote } = this.deps;
+      const sparkReceiveQuoteService =
+        getSparkLightningQuote && createSparkReceiveQuote
+          ? {
+              getLightningQuote: getSparkLightningQuote,
+              createReceiveQuote: createSparkReceiveQuote,
+            }
+          : new SparkReceiveQuoteServiceServer(
+              new SparkReceiveQuoteRepositoryServer(this.db),
+            );
 
-      const metadata = this.buildLnurlpMetadata(user.username);
+      const metadata = this.buildLnurlpMetadata(user.username, baseUrl);
       const descriptionHash = bytesToHex(
         sha256(new TextEncoder().encode(metadata)),
       );
@@ -250,7 +300,7 @@ export class LightningAddressService {
 
       return {
         pr: lightningQuote.invoice.paymentRequest,
-        verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
+        verify: `${baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
         routes: [],
       };
     } catch (error) {
@@ -267,9 +317,10 @@ export class LightningAddressService {
    * @param encryptedQuoteData the encrypted data containing quote info
    * @return the lnurl-verify result or error
    */
-  async handleLnurlpVerify(
-    encryptedQuoteData: string,
-  ): Promise<LNURLVerifyResult | LNURLError> {
+  async handleLnurlpVerify(params: {
+    encryptedQuoteData: string;
+  }): Promise<LNURLVerifyResult | LNURLError> {
+    const { encryptedQuoteData } = params;
     try {
       const payload = this.decryptLnurlVerifyQuoteData(encryptedQuoteData);
 
@@ -295,7 +346,7 @@ export class LightningAddressService {
     mintQuoteId: string,
     mintUrl: string,
   ): Promise<LNURLVerifyResult> {
-    const wallet = getCashuWallet(mintUrl);
+    const wallet = (this.deps.getCashuWallet ?? getCashuWallet)(mintUrl);
     const mintQuote = await wallet.checkMintQuoteBolt11(mintQuoteId);
 
     if (['PAID', 'ISSUED'].includes(mintQuote.state)) {
@@ -318,11 +369,11 @@ export class LightningAddressService {
   private async handleSparkLnurlpVerify(
     receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
-    const wallet = await getSparkWallet({
-      network: 'MAINNET',
-      mnemonic: sparkMnemonic,
-      storageDir: this.sparkConfig.storageDir,
-      apiKey: this.sparkConfig.apiKey,
+    const wallet = await (this.deps.getSparkWallet ?? getSparkWallet)({
+      network: this.network,
+      mnemonic: this.mnemonic,
+      storageDir: this.storageDir,
+      apiKey: this.apiKey,
     });
 
     const receiveRequest = await wallet.getLightningReceiveRequest({
@@ -345,8 +396,8 @@ export class LightningAddressService {
     };
   }
 
-  private buildLnurlpMetadata(username: string): string {
-    const address = `${username}@${new URL(this.baseUrl).host}`;
+  private buildLnurlpMetadata(username: string, baseUrl: string): string {
+    const address = `${username}@${new URL(baseUrl).host}`;
     return JSON.stringify([
       ['text/plain', `Pay to ${address}`],
       ['text/identifier', address],
@@ -355,7 +406,7 @@ export class LightningAddressService {
 
   private encryptLnurlVerifyQuoteData(payload: LnurlVerifyQuoteData): string {
     const data = new TextEncoder().encode(JSON.stringify(payload));
-    const encrypted = encryptXChaCha20Poly1305(data, encryptionKeyBytes);
+    const encrypted = encryptXChaCha20Poly1305(data, this.encryptionKeyBytes);
     return base64url.encode(encrypted);
   }
 
@@ -363,7 +414,10 @@ export class LightningAddressService {
     encryptedQuoteData: string,
   ): LnurlVerifyQuoteData {
     const encrypted = base64url.decode(encryptedQuoteData);
-    const decrypted = decryptXChaCha20Poly1305(encrypted, encryptionKeyBytes);
+    const decrypted = decryptXChaCha20Poly1305(
+      encrypted,
+      this.encryptionKeyBytes,
+    );
     return LnurlVerifyQuoteDataSchema.parse(
       JSON.parse(new TextDecoder().decode(decrypted)),
     );

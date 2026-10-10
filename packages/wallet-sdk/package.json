@@ -5,14 +5,14 @@
   "exports": {
     ".": "./index.ts",
     "./gift-card-config": "./domain/gift-cards/gift-card-config.ts",
-    "./temporary": "./temporary.ts",
-    "./temporary.server": "./temporary.server.ts"
+    "./server": "./server.ts",
+    "./temporary": "./temporary.ts"
   },
   "exports:comments": {
     ".": "The public surface: domain types only. Repositories, services, and the wallet DB layer are SDK-internal; during the migration the web imports them from ./temporary instead, so that deleting that entry at the end compiler-enforces the boundary.",
     "./gift-card-config": "Node-loadable escape hatch: vite.config.ts imports the web's gift-card-config module, and vite evaluates its config under plain Node, where the SDK's extensionless relative imports don't resolve (the main entry has runtime re-exports, so Node's type stripping doesn't save it). This module's graph imports only zod, so Node can load it. Keep it that way — adding a relative import to it breaks the Vercel build.",
-    "./temporary": "Migration-only re-exports of SDK internals (repositories, services, DB types) that the web still imports mid-extraction. Deleted once the extraction completes.",
-    "./temporary.server": "Same as ./temporary but for server-only modules, kept separate so `.server` files never enter the client module graph — React Router forbids client code reaching them."
+    "./server": "Server-only runtime (AgicashServerSdk). Imports the Lightning-address service, which pulls the `.server` receive-quote twins. Not on the package root: the client graph imports `.` and must not reach those modules.",
+    "./temporary": "Migration-only re-exports of SDK internals (repositories, services, DB types) that the web still imports mid-extraction. Deleted once the extraction completes."
   },
   "scripts": {
     "typecheck": "tsc",
