@@ -1,7 +1,6 @@
-import { TaskProcessingLockRepository } from '@agicash/wallet-sdk/temporary';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { agicashDbClient } from '../agicash-db/database.client';
+import type { SdkError, TaskProcessorState } from '@agicash/wallet-sdk';
+import { useEffect, useSyncExternalStore } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useProcessCashuReceiveQuoteTasks } from '../receive/cashu-receive-quote-hooks';
 import { useProcessCashuReceiveSwapTasks } from '../receive/cashu-receive-swap-hooks';
 import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
@@ -10,61 +9,69 @@ import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
 import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
 import { useUser } from '../user/user-hooks';
 
-const taskProcessingLockRepository = new TaskProcessingLockRepository(
-  agicashDbClient,
-);
-
-/**
- * Use to take a lead on task processing.
- * Prevents multiple instances of the task processor from running at the same time on different clients (browser tabs or different devices).
- * Attempts to take the lead every 5 seconds and if another client is already taking the lead, it will return false.
- * @returns true if the lead was taken, false if it failed to take the lead.
- */
-export const useTakeTaskProcessingLead = () => {
-  const userId = useUser((user) => user.id);
-  const [clientId] = useState(() => {
-    const isRunningInBrowser = typeof window !== 'undefined';
-    if (!isRunningInBrowser) {
-      return '';
-    }
-    return crypto.randomUUID();
-  });
-
-  const { data: takeLeadResult, error } = useQuery({
-    enabled: !!clientId,
-    queryKey: ['take-lead', clientId],
-    queryFn: () => {
-      return taskProcessingLockRepository.takeLead(userId, clientId);
-    },
-    refetchInterval: 5000,
-    refetchIntervalInBackground: false,
-  });
-
-  useEffect(() => {
-    if (error) {
-      console.warn(
-        'Error. Take lead request failed. Will retry in 5 seconds.',
-        {
-          cause: error,
-        },
-      );
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (takeLeadResult) {
-      console.debug('Taking lead on task processing', {
-        clientId,
-      });
-    } else if (takeLeadResult === false) {
-      console.debug('Yielded lead on task processing', {
-        clientId,
-      });
-    }
-  }, [takeLeadResult, clientId]);
-
-  return takeLeadResult ?? false;
+const SERVER_SNAPSHOT: { state: TaskProcessorState; error?: SdkError } = {
+  state: 'stopped',
 };
+
+let cached: { state: TaskProcessorState; error?: SdkError } = SERVER_SNAPSHOT;
+
+function publish(next: { state: TaskProcessorState; error?: SdkError }): void {
+  if (cached.state === next.state && cached.error === next.error) {
+    return;
+  }
+  cached = next;
+}
+
+function subscribeTaskProcessor(onStoreChange: () => void): () => void {
+  publish(
+    sdk.taskProcessor.state === 'error'
+      ? cached.state === 'error'
+        ? cached
+        : { state: 'error' }
+      : { state: sdk.taskProcessor.state },
+  );
+  return sdk.events.on('task-processor.state-changed', (payload) => {
+    publish(
+      payload.state === 'error'
+        ? { state: payload.state, error: payload.error }
+        : { state: payload.state },
+    );
+    onStoreChange();
+  });
+}
+
+function getTaskProcessorSnapshot(): {
+  state: TaskProcessorState;
+  error?: SdkError;
+} {
+  const current = sdk.taskProcessor.state;
+  if (cached.state !== current && current !== 'error') {
+    publish({ state: current });
+  }
+  return cached;
+}
+
+export function useRunTaskProcessor(): void {
+  const userId = useUser((user) => user.id);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: userId restarts the loop; it is not read inside
+  useEffect(() => {
+    sdk.taskProcessor.start();
+    return () => {
+      void sdk.taskProcessor.stop();
+    };
+  }, [userId]);
+}
+
+export function useTaskProcessorSnapshot(): {
+  state: TaskProcessorState;
+  error?: SdkError;
+} {
+  return useSyncExternalStore(
+    subscribeTaskProcessor,
+    getTaskProcessorSnapshot,
+    () => SERVER_SNAPSHOT,
+  );
+}
 
 /**
  * Sets up background task processing.
