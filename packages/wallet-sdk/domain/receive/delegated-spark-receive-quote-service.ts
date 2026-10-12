@@ -1,3 +1,7 @@
+import type {
+  DelegatedSparkReceiveQuoteRepository,
+  SparkReceiveQuoteCreated,
+} from './delegated-spark-receive-quote-repository';
 import {
   type CreateQuoteBaseParams,
   type GetLightningQuoteParams,
@@ -6,10 +10,6 @@ import {
   getAmountAndFee,
   getLightningQuote,
 } from './spark-receive-quote-core';
-import type {
-  SparkReceiveQuoteCreated,
-  SparkReceiveQuoteRepositoryServer,
-} from './spark-receive-quote-repository.server';
 
 // Re-export shared types for convenience
 export type { SparkReceiveLightningQuote, GetLightningQuoteParams };
@@ -22,12 +22,14 @@ type CreateQuoteParams = CreateQuoteBaseParams & {
 };
 
 /**
- * Server-side service for creating spark receive quotes.
+ * Delegated service for creating spark receive quotes on the recipient's behalf.
  * This service only supports getting lightning quotes and creating receive quotes.
  * It does not support reading or updating quotes (no decrypt capability).
  */
-export class SparkReceiveQuoteServiceServer {
-  constructor(private readonly repository: SparkReceiveQuoteRepositoryServer) {}
+export class DelegatedSparkReceiveQuoteService {
+  constructor(
+    private readonly repository: DelegatedSparkReceiveQuoteRepository,
+  ) {}
 
   /**
    * Gets a Spark lightning receive quote for the given amount.
