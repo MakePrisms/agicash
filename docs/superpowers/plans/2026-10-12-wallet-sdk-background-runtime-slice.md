@@ -192,11 +192,7 @@ No DOM lib (`packages/wallet-sdk/tsconfig.json:6` is `ES2022`). Read the environ
 
 - `isForeground()`: read `document.visibilityState`. If `document` is missing or `visibilityState` is missing, return `true`. Otherwise return `visibilityState !== 'hidden'`.
 - `isOnline()`: a flag starting `true`. Not `navigator.onLine`.
-- `subscribe`: if `window.addEventListener` is not a function, return `() => undefined`. Otherwise listen, all `false` for the capture argument:
-  - `visibilitychange` → call `onChange`.
-  - `offline` → set the flag false, then `onChange`.
-  - `online` → set the flag true, then `onChange`.
-  - The unsubscribe removes those three listeners.
+- `subscribe`: if `window.addEventListener` is not a function, return `() => undefined`. Otherwise, on the first subscribe only, install lifetime `offline` / `online` listeners that write the flag and are never removed — the flag must keep learning between `stop()` and the next `start()`, or a restarted loop is blind to an offline→online flip that happened while unsubscribed (adversarial-review finding R1; master's `onlineManager` listens for the `QueryClient` lifetime). Then add per-subscription forward listeners (`visibilitychange` / `offline` / `online` → `onChange`), all `false` for the capture argument. The unsubscribe removes only the three forward listeners.
 
 ### Runtime behavior
 
@@ -417,7 +413,7 @@ Gates are the Verification table. `bun run fix:all` is repo-wide `biome check --
 | Install | `bun install --frozen-lockfile` | exit 0, lockfile unchanged |
 | Lint/format + write | `bun run fix:all` | exit 0; only the File-map paths modified |
 | Types (all pkgs) | `bun run typecheck` | exit 0 |
-| SDK unit tests | `cd packages/wallet-sdk && bun run test` | green (292 `it`/`test` calls at `2105726` + the lettered additions a–q) |
+| SDK unit tests | `cd packages/wallet-sdk && bun run test` | green (292 `it`/`test` calls at `2105726` + the lettered additions a–s; (r) and (s) were added by the adversarial-review round) |
 | Web unit tests | `cd apps/web-wallet && bun run test` | green (40 at the pin; no new web test) |
 | Canary | greps in Task 1 | as written |
 | Live | maintainer, two browsers | below |

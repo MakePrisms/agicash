@@ -469,6 +469,12 @@ describe('createTaskProcessor', () => {
     harness.processor.start();
     expect(harness.calls).toHaveLength(1);
     const stopPromise = harness.processor.stop();
+    let stopSettled = false;
+    void stopPromise.then(() => {
+      stopSettled = true;
+    });
+    await flush();
+    expect(stopSettled).toBe(false);
     latestTimeout(harness.clock?.timeouts ?? [], 5000).callback();
     await stopPromise;
     expect(harness.processor.state).toBe('stopped');
@@ -490,7 +496,11 @@ describe('createTaskProcessor', () => {
     expect(harness.uuidCount()).toBe(1);
     harness.calls[0]?.resolve(true);
     await flush();
-    expect(harness.processor.state).not.toBe('leader');
+    expect(harness.processor.state).toBe('follower');
+    const liveInterval = (harness.clock?.intervals ?? []).at(-1);
+    liveInterval?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
     harness.calls[1]?.resolve(true);
     await flush();
     expect(harness.processor.state).toBe('leader');
@@ -527,12 +537,14 @@ describe('createTaskProcessor', () => {
 
   it('(n) calls wallet.take_lead through the repository when no seam is set', async () => {
     const rpcCalls: Array<{ fn: string; args: unknown }> = [];
+    const abortSignals: unknown[] = [];
     const db = {
       rpc(fn: string, args: unknown) {
         rpcCalls.push({ fn, args });
         const result = Promise.resolve({ data: true, error: null });
         return Object.assign(result, {
-          abortSignal() {
+          abortSignal(signal: unknown) {
+            abortSignals.push(signal);
             return this;
           },
         });
@@ -569,6 +581,8 @@ describe('createTaskProcessor', () => {
         },
       },
     ]);
+    expect(abortSignals).toHaveLength(1);
+    expect(abortSignals[0]).toBeInstanceOf(AbortSignal);
     await processor.stop();
   });
 
@@ -580,6 +594,11 @@ describe('createTaskProcessor', () => {
     harness.processor.start();
     expect(harness.calls).toHaveLength(1);
     harness.calls[0]?.resolve(true);
+    await flush();
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
     await flush();
     await harness.processor.stop();
   });
@@ -629,5 +648,79 @@ describe('createTaskProcessor', () => {
       harness.emits.filter((payload) => payload.state === 'leader'),
     ).toHaveLength(1);
     expect(harness.debugLog).toHaveLength(1);
+  });
+
+  it('(r) keeps the online flag fresh across stop/start (default activity)', async () => {
+    const host = globalThis as { window?: unknown; document?: unknown };
+    const savedWindow = host.window;
+    const savedDocument = host.document;
+    const listeners = new Map<string, Set<() => void>>();
+    host.window = {
+      addEventListener: (type: string, listener: () => void) => {
+        const set = listeners.get(type) ?? new Set<() => void>();
+        set.add(listener);
+        listeners.set(type, set);
+      },
+      removeEventListener: (type: string, listener: () => void) => {
+        listeners.get(type)?.delete(listener);
+      },
+    };
+    host.document = { visibilityState: 'visible' };
+    const fire = (type: string) => {
+      for (const listener of listeners.get(type) ?? []) {
+        listener();
+      }
+    };
+    try {
+      const harness = createHarness();
+      harness.processor.start();
+      expect(harness.calls).toHaveLength(1);
+      harness.calls[0]?.resolve(true);
+      await flush();
+      expect(harness.processor.state).toBe('leader');
+      fire('offline');
+      await flush();
+      expect(harness.calls).toHaveLength(1);
+      await harness.processor.stop();
+      expect(listeners.get('visibilitychange')?.size ?? 0).toBe(0);
+      fire('online');
+      harness.processor.start();
+      expect(harness.calls).toHaveLength(2);
+      harness.calls[1]?.resolve(true);
+      await flush();
+      expect(harness.processor.state).toBe('leader');
+      await harness.processor.stop();
+    } finally {
+      host.window = savedWindow;
+      host.document = savedDocument;
+    }
+  });
+
+  it('(s) a parked retry ignores an online flip while hidden', async () => {
+    const activity = createActivity({ foreground: true, online: true });
+    const harness = createHarness({ activity: activity.activity });
+    await becomeLeader(harness);
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.reject(new Error('db down'));
+    await flush();
+    activity.setForeground(false);
+    activity.setOnline(false);
+    activity.notify();
+    latestTimeout(harness.clock?.timeouts ?? [], 1000).callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    activity.setOnline(true);
+    activity.notify();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    activity.setForeground(true);
+    activity.notify();
+    await flush();
+    expect(harness.calls).toHaveLength(3);
+    harness.calls[2]?.resolve(true);
+    await flush();
+    expect(harness.processor.state).toBe('leader');
   });
 });

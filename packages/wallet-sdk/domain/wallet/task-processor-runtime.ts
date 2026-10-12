@@ -57,6 +57,7 @@ type HostWindow = {
 
 function createDefaultDocumentActivity(): DocumentActivity {
   let online = true;
+  let trackingOnline = false;
   return {
     isForeground(): boolean {
       const hostDocument = (globalThis as { document?: HostDocument }).document;
@@ -73,24 +74,36 @@ function createDefaultDocumentActivity(): DocumentActivity {
       if (typeof hostWindow?.addEventListener !== 'function') {
         return () => undefined;
       }
-      const onVisibility = () => {
+      // The flag listeners live for the activity's whole lifetime: an
+      // offline/online flip between stop() and the next start() must still
+      // land on the flag, or a restarted loop never attempts take_lead again.
+      if (!trackingOnline) {
+        trackingOnline = true;
+        hostWindow.addEventListener(
+          'offline',
+          () => {
+            online = false;
+          },
+          false,
+        );
+        hostWindow.addEventListener(
+          'online',
+          () => {
+            online = true;
+          },
+          false,
+        );
+      }
+      const forward = () => {
         onChange();
       };
-      const onOffline = () => {
-        online = false;
-        onChange();
-      };
-      const onOnline = () => {
-        online = true;
-        onChange();
-      };
-      hostWindow.addEventListener('visibilitychange', onVisibility, false);
-      hostWindow.addEventListener('offline', onOffline, false);
-      hostWindow.addEventListener('online', onOnline, false);
+      hostWindow.addEventListener('visibilitychange', forward, false);
+      hostWindow.addEventListener('offline', forward, false);
+      hostWindow.addEventListener('online', forward, false);
       return () => {
-        hostWindow.removeEventListener('visibilitychange', onVisibility, false);
-        hostWindow.removeEventListener('offline', onOffline, false);
-        hostWindow.removeEventListener('online', onOnline, false);
+        hostWindow.removeEventListener('visibilitychange', forward, false);
+        hostWindow.removeEventListener('offline', forward, false);
+        hostWindow.removeEventListener('online', forward, false);
       };
     },
   };
@@ -192,6 +205,9 @@ class TaskProcessorRuntime {
     this.lastLead = undefined;
     this.wasOnline = this.activity.isOnline();
     this.transition('follower');
+    if (generation !== this.generation) {
+      return;
+    }
     this.activityUnsubscribe = this.activity.subscribe(() => {
       this.onActivity(generation);
     });
@@ -288,20 +304,17 @@ class TaskProcessorRuntime {
     this.kick(generation, 'interval');
   }
 
-  private kick(generation: number, reason: AttemptReason): void {
-    if (reason === 'interval' || reason === 'resume') {
-      if (this.isRunnable() && !this.inFlight) {
-        void this.attempt(generation, reason);
-      }
-      return;
-    }
+  private kick(
+    generation: number,
+    reason: Exclude<AttemptReason, 'mount'>,
+  ): void {
     if (reason === 'reconnect') {
       if (this.activity.isOnline() && !this.inFlight) {
         void this.attempt(generation, reason);
       }
       return;
     }
-    if (!this.inFlight && this.activity.isOnline()) {
+    if (this.isRunnable() && !this.inFlight) {
       void this.attempt(generation, reason);
     }
   }
@@ -342,6 +355,7 @@ class TaskProcessorRuntime {
         session = this.deps.getSession();
       } catch (error) {
         if (error instanceof DisposedError) {
+          void this.stop();
           return;
         }
         throw error;

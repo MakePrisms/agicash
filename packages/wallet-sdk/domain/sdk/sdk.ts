@@ -103,6 +103,9 @@ export class AgicashSdk implements Sdk {
       emit: (payload) => events.emit('auth.session-started', payload),
     });
 
+    // The `= undefined` keeps this a two-assignment `let`: without it biome's
+    // useConst demands a const, which cannot work — the onSessionEnded closure
+    // above must capture the binding before the runtime exists to assign.
     let taskProcessor: TaskProcessorApi | undefined = undefined;
 
     this.authService = new AuthService({
@@ -237,6 +240,9 @@ export class AgicashSdk implements Sdk {
   async dispose(): Promise<void> {
     await this.taskProcessor.stop();
     this.disposed = true;
+    // A start() that slipped in during the await above armed a live loop on a
+    // now-disposed instance; this second stop() is idempotent and tears it down.
+    void this.taskProcessor.stop();
     this.authService.teardown();
     this.keys.dispose();
     if (currentInstance === this) {
