@@ -11,8 +11,8 @@ type Options = {
 };
 
 /**
- * Minimal data returned after creating a spark receive quote on the server.
- * Server doesn't have access to user's private key to decrypt full quote data.
+ * Minimal data returned after a delegated spark receive quote creation.
+ * The delegate has no access to the recipient's private key to decrypt full quote data.
  */
 export type SparkReceiveQuoteCreated = {
   id: string;
@@ -34,11 +34,11 @@ type CreateQuoteParams = RepositoryCreateQuoteParams & {
 };
 
 /**
- * Server-side repository for creating spark receive quotes.
+ * Delegated repository for creating spark receive quotes on the recipient's behalf.
  * This repository only supports creating quotes and returns minimal data.
  * It encrypts data to the user's public key but cannot decrypt.
  */
-export class SparkReceiveQuoteRepositoryServer {
+export class DelegatedSparkReceiveQuoteRepository {
   constructor(private readonly db: AgicashDb) {}
 
   /**

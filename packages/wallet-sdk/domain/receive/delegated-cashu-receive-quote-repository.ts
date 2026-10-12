@@ -8,8 +8,8 @@ import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { RepositoryCreateQuoteParams } from './cashu-receive-quote-core';
 
 /**
- * Minimal data returned by the server-side repository after creating a quote.
- * This avoids exposing sensitive data that requires decryption on the server.
+ * Minimal data returned by the delegated repository after creating a quote.
+ * The delegate cannot decrypt, so nothing requiring decryption is exposed.
  */
 export type CashuReceiveQuoteCreated = {
   id: string;
@@ -25,7 +25,7 @@ export type CashuReceiveQuoteCreated = {
 
 type CreateQuoteParams = RepositoryCreateQuoteParams & {
   /**
-   * The user's encryption public key. Used to encrypt data on the server before storage.
+   * The recipient's encryption public key. The payload is encrypted to it before storage.
    */
   userEncryptionPublicKey: string;
 };
@@ -35,15 +35,15 @@ type Options = {
 };
 
 /**
- * Server-side repository for Cashu receive quotes.
- * Can only create quotes (not read/decrypt them) since the server doesn't have the user's private key.
+ * Delegated repository for Cashu receive quotes — creates them on the recipient's behalf.
+ * Can only create quotes (not read/decrypt them) since the delegate doesn't hold the recipient's private key.
  */
-export class CashuReceiveQuoteRepositoryServer {
+export class DelegatedCashuReceiveQuoteRepository {
   constructor(private readonly db: AgicashDb) {}
 
   /**
-   * Creates a cashu receive quote on the server.
-   * Encrypts data using the user's public key before storage.
+   * Creates a cashu receive quote on the recipient's behalf.
+   * Encrypts the payload to the recipient's public key before storage.
    * @returns Minimal quote data without requiring decryption.
    */
   async create(

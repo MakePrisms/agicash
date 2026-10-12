@@ -1,4 +1,4 @@
-import { AgicashServerSdk } from '@agicash/wallet-sdk/server';
+import { AgicashServerSdk } from '@agicash/wallet-sdk';
 import { breezApiKey } from '~/lib/breez';
 
 const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';

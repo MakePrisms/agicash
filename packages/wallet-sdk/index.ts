@@ -9,6 +9,7 @@
 // projections.
 export * from './domain/sdk';
 export { AgicashSdk } from './domain/sdk/sdk';
+export { AgicashServerSdk } from './domain/sdk/server-sdk';
 export { nullLogger } from './lib/logger';
 export * from './domain/exchange-rate';
 export {

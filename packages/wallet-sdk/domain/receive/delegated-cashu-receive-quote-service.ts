@@ -6,27 +6,27 @@ import {
 } from './cashu-receive-quote-core';
 import type {
   CashuReceiveQuoteCreated,
-  CashuReceiveQuoteRepositoryServer,
-} from './cashu-receive-quote-repository.server';
+  DelegatedCashuReceiveQuoteRepository,
+} from './delegated-cashu-receive-quote-repository';
 
 type CreateQuoteParams = CreateQuoteBaseParams & {
   /**
-   * The user's encryption public key. Used to encrypt data on the server before storage.
+   * The recipient's encryption public key. The payload is encrypted to it before storage.
    */
   userEncryptionPublicKey: string;
 };
 
 /**
- * Server-side service for Cashu receive quotes.
- * Limited to creating quotes only since the server cannot decrypt existing quotes.
+ * Delegated service for Cashu receive quotes — creates them on the recipient's behalf.
+ * Limited to creating quotes only since the delegate cannot decrypt existing quotes.
  */
-export class CashuReceiveQuoteServiceServer {
+export class DelegatedCashuReceiveQuoteService {
   constructor(
-    private readonly cashuReceiveQuoteRepository: CashuReceiveQuoteRepositoryServer,
+    private readonly cashuReceiveQuoteRepository: DelegatedCashuReceiveQuoteRepository,
   ) {}
 
   /**
-   * Creates a new cashu receive quote on the server.
+   * Creates a new cashu receive quote on the recipient's behalf.
    * @returns Minimal quote data without requiring decryption.
    */
   async createReceiveQuote(

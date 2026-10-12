@@ -5,7 +5,12 @@ import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
 import type { AgicashDb } from '../../db/database';
 import type { RedactedAccount } from '../accounts/account';
+import type { ExchangeRateService } from '../exchange-rate';
 import type { User } from '../user/user';
+import type {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '../user/user-repository';
 import {
   type LightningAddressDeps,
   LightningAddressService,
@@ -93,16 +98,29 @@ const msat = (amount: number) =>
 const spyConsoleError = () =>
   spyOn(console, 'error').mockImplementation(() => undefined);
 
-const userRepositoryReturning = (user: User) => ({
-  get: async (_userId: string): Promise<User> => user,
-  getByUsername: async (_username: string): Promise<User | null> => user,
-});
+const asUserRepository = (
+  double: Pick<ReadUserRepository, 'get' | 'getByUsername'>,
+) => double as unknown as ReadUserRepository;
+
+const asExchangeRateService = (double: Pick<ExchangeRateService, 'getRate'>) =>
+  double as unknown as ExchangeRateService;
+
+const asDefaultAccountRepository = (
+  double: Pick<ReadUserDefaultAccountRepository, 'getDefaultAccount'>,
+) => double as unknown as ReadUserDefaultAccountRepository;
+
+const userRepositoryReturning = (user: User) =>
+  asUserRepository({
+    get: async (_userId: string): Promise<User> => user,
+    getByUsername: async (_username: string): Promise<User | null> => user,
+  });
 
 const defaultAccountRepositoryReturning =
   (account: RedactedAccount): CreateDefaultAccountRepository =>
-  () => ({
-    getDefaultAccount: async (_userId: string) => account,
-  });
+  () =>
+    asDefaultAccountRepository({
+      getDefaultAccount: async (_userId: string) => account,
+    });
 
 const verifySegment = (result: LNURLPayResult | LNURLError): string => {
   const verify = (result as LNURLPayResult).verify ?? '';
@@ -160,18 +178,19 @@ const createCashuCallbackSetup = () => {
   const sparkWallet = createSparkWalletSeam(async () => null);
   const service = new LightningAddressService(config, {
     userRepository: userRepositoryReturning(alice),
-    exchangeRateService: {
+    exchangeRateService: asExchangeRateService({
       getRate: async (ticker: string) => {
         rateTickers.push(ticker);
         return '1';
       },
-    },
-    createDefaultAccountRepository: () => ({
-      getDefaultAccount: async (...args: unknown[]) => {
-        defaultAccountCalls.push(args);
-        return cashuAccount;
-      },
     }),
+    createDefaultAccountRepository: () =>
+      asDefaultAccountRepository({
+        getDefaultAccount: async (...args: unknown[]) => {
+          defaultAccountCalls.push(args);
+          return cashuAccount;
+        },
+      }),
     getCashuLightningQuote: async (
       params: Parameters<GetCashuLightningQuote>[0],
     ) => {
@@ -215,13 +234,13 @@ describe('LightningAddressService', () => {
     it('(a) returns pay params with a per-call baseUrl and no shared state', async () => {
       const sparkWallet = createSparkWalletSeam(async () => null);
       const service = new LightningAddressService(config, {
-        userRepository: {
+        userRepository: asUserRepository({
           get: async (_userId: string): Promise<User> => {
             throw new Error('get must not run');
           },
           getByUsername: async (username: string) =>
             username === 'alice' ? alice : username === 'bob' ? bob : null,
-        },
+        }),
         getSparkWallet: sparkWallet.getSparkWallet,
       });
 
@@ -266,10 +285,10 @@ describe('LightningAddressService', () => {
 
     it('(b) returns the lowercase not-found envelope when no user has the username', async () => {
       const service = new LightningAddressService(config, {
-        userRepository: {
+        userRepository: asUserRepository({
           get: async (_userId: string): Promise<User> => alice,
           getByUsername: async (_username: string) => null,
-        },
+        }),
       });
 
       const result = await service.handleLud16Request({
@@ -284,12 +303,12 @@ describe('LightningAddressService', () => {
     it('(c) logs and returns the internal-error envelope when the lookup throws', async () => {
       const error = new Error('db down');
       const service = new LightningAddressService(config, {
-        userRepository: {
+        userRepository: asUserRepository({
           get: async (_userId: string): Promise<User> => alice,
           getByUsername: async (_username: string): Promise<User | null> => {
             throw error;
           },
-        },
+        }),
       });
       const errorSpy = spyConsoleError();
       try {
@@ -316,7 +335,7 @@ describe('LightningAddressService', () => {
     const createLookupRecorder = () => {
       const lookups: string[] = [];
       const service = new LightningAddressService(config, {
-        userRepository: {
+        userRepository: asUserRepository({
           get: async (userId: string): Promise<User> => {
             lookups.push(`get:${userId}`);
             throw new Error('no rows');
@@ -325,7 +344,7 @@ describe('LightningAddressService', () => {
             lookups.push(`getByUsername:${username}`);
             return null;
           },
-        },
+        }),
       });
       return { service, lookups };
     };
@@ -413,12 +432,13 @@ describe('LightningAddressService', () => {
       const calls = new Map<string, unknown[]>();
       const service = new LightningAddressService(config, {
         userRepository: userRepositoryReturning(alice),
-        createDefaultAccountRepository: () => ({
-          getDefaultAccount: async (...args: unknown[]) => {
-            calls.set(args[0] as string, args);
-            throw new Error('stop before quote creation');
-          },
-        }),
+        createDefaultAccountRepository: () =>
+          asDefaultAccountRepository({
+            getDefaultAccount: async (...args: unknown[]) => {
+              calls.set(args[0] as string, args);
+              throw new Error('stop before quote creation');
+            },
+          }),
       });
       const errorSpy = spyConsoleError();
       try {
@@ -617,12 +637,12 @@ describe('LightningAddressService', () => {
       } as RedactedAccount;
       const service = new LightningAddressService(config, {
         userRepository: userRepositoryReturning(alice),
-        exchangeRateService: {
+        exchangeRateService: asExchangeRateService({
           getRate: async (ticker: string) => {
             rateTickers.push(ticker);
             return '1';
           },
-        },
+        }),
         createDefaultAccountRepository:
           defaultAccountRepositoryReturning(usdCashuAccount),
         getCashuLightningQuote: async (
@@ -655,11 +675,11 @@ describe('LightningAddressService', () => {
         userRepository: userRepositoryReturning(alice),
         createDefaultAccountRepository: (...args) => {
           factoryCalls.push(args);
-          return {
+          return asDefaultAccountRepository({
             getDefaultAccount: async (_userId: string) => {
               throw new Error('stop before quote creation');
             },
-          };
+          });
         },
       });
       const errorSpy = spyConsoleError();
