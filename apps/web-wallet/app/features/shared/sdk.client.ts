@@ -1,6 +1,7 @@
 import { browserStorage } from '@agicash/opensecret';
 import { AgicashSdk } from '@agicash/wallet-sdk';
 import { breezApiKey } from '~/lib/breez';
+import { browserActivity } from './browser-activity.client';
 
 const getSupabaseUrl = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
@@ -58,6 +59,7 @@ export const sdk = AgicashSdk.create({
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
   },
+  activity: browserActivity,
   auth: {
     apiUrl: openSecretApiUrl,
     clientId: openSecretClientId,

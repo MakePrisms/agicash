@@ -38,11 +38,28 @@ export type Logger = {
   error(message: string, meta?: unknown): void;
 };
 
+/**
+ * How the host reports whether this client can and should run task processing
+ * right now. One bit: report false while the host is backgrounded (the
+ * platform may throttle, freeze, or kill it) or offline (requests would fail)
+ * — an unreliable worker yields its lease so a live client takes over. The
+ * SDK reads no platform globals; every host implements this. The web host
+ * reports foreground AND online; a host that is never suspended returns a
+ * constant true.
+ */
+export type ActivityMonitor = {
+  isActive(): boolean;
+  /** Fires on every possible `isActive()` change. Returns unsubscribe. */
+  subscribe(onChange: () => void): () => void;
+};
+
 export type SdkConfig = {
   db: {
     url: string;
     anonKey: string;
   };
+  /** Task processing runs only while active; see `ActivityMonitor`. */
+  activity: ActivityMonitor;
   auth: {
     apiUrl: string;
     clientId: string;

@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'bun:test';
-import type { AuthKeyValueStore, SdkConfig } from '.';
+import type { ActivityMonitor, AuthKeyValueStore, SdkConfig } from '.';
 import { NotImplementedError } from '../../lib/error';
 import { nullLogger } from '../../lib/logger';
 import { WebAssemblyUnavailableError } from '../../lib/spark/errors';
 import { AgicashSdk } from './sdk';
+
+const alwaysActive: ActivityMonitor = {
+  isActive: () => true,
+  subscribe: () => () => undefined,
+};
 
 const createMemoryStore = (): AuthKeyValueStore => {
   const data = new Map<string, string>();
@@ -20,6 +25,7 @@ const createMemoryStore = (): AuthKeyValueStore => {
 
 const createConfig = (): SdkConfig => ({
   db: { url: 'http://localhost:54321', anonKey: 'anon-key' },
+  activity: alwaysActive,
   auth: {
     apiUrl: 'http://localhost:3100',
     clientId: '00000000-0000-0000-0000-000000000000',

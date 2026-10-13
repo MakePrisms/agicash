@@ -33,6 +33,7 @@ import { createTransactionsApi } from '../transactions/transactions-api';
 import { createTransferApi } from '../transfer/transfer-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
+import { createTaskProcessor } from '../wallet/task-processor-runtime';
 import { WalletEventEmitter } from './events';
 import { type OwnedSessionKeys, createSessionKeys } from './session-keys';
 import { createUserProvisioner } from './user-provisioner';
@@ -58,12 +59,10 @@ export class AgicashSdk implements Sdk {
   readonly send: SendApi;
   readonly transfer: TransferApi;
   readonly events: WalletEvents;
+  readonly taskProcessor: TaskProcessorApi;
 
   get featureFlags(): FeatureFlagsApi {
     throw new NotImplementedError('featureFlags');
-  }
-  get taskProcessor(): TaskProcessorApi {
-    throw new NotImplementedError('taskProcessor');
   }
 
   private readonly authService: AuthService;
@@ -104,6 +103,11 @@ export class AgicashSdk implements Sdk {
       emit: (payload) => events.emit('auth.session-started', payload),
     });
 
+    // The `= undefined` keeps this a two-assignment `let`: without it biome's
+    // useConst demands a const, which cannot work — the onSessionEnded closure
+    // above must capture the binding before the runtime exists to assign.
+    let taskProcessor: TaskProcessorApi | undefined = undefined;
+
     this.authService = new AuthService({
       os: openSecret,
       storage: config.auth.storage,
@@ -113,6 +117,9 @@ export class AgicashSdk implements Sdk {
       events,
       onSessionStarted: userProvisioner.provision,
       onSessionEnded: () => {
+        if (taskProcessor) {
+          void taskProcessor.stop();
+        }
         // The token cache must die with the session: a token minted for one
         // user must never serve the next login's queries. Anything wiped here
         // must fence its own in-flight writes (a generation counter or abort
@@ -146,6 +153,15 @@ export class AgicashSdk implements Sdk {
       anonKey: config.db.anonKey,
       accessToken: sessionToken.getToken,
     });
+
+    taskProcessor = createTaskProcessor({
+      db,
+      getSession: getLiveSession,
+      activity: config.activity,
+      emit: (payload) => events.emit('task-processor.state-changed', payload),
+      logger: config.logger,
+    });
+    this.taskProcessor = taskProcessor;
 
     const sparkConfig: SparkWalletConfig = {
       storageDir: config.spark.storageDir ?? './.spark-data',
@@ -223,7 +239,10 @@ export class AgicashSdk implements Sdk {
   }
 
   async dispose(): Promise<void> {
+    // The flag goes first so a start() during the stop() drain below throws
+    // DisposedError instead of arming a loop that outlives the instance.
     this.disposed = true;
+    await this.taskProcessor.stop();
     this.authService.teardown();
     this.keys.dispose();
     if (currentInstance === this) {
