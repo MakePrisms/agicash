@@ -77,20 +77,23 @@ export function BuySection() {
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
           <SectionLabel href="#buy">01_buy</SectionLabel>
-          <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:mt-10 md:text-5xl">
+          <h2 className="mt-8 font-medium text-3xl leading-[1.15] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:mt-10 md:text-5xl">
             <a href="#buy">Buy a card in seconds.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
             Buy a gift card with bitcoin, or use the Cash App to buy directly
             from your bank account.
           </p>
-          <div className="mt-6 font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+          <div className="mt-6 text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
             lightning · cash app · settled instantly
           </div>
         </div>
 
         <div className="flex justify-center">
-          <div className={`${buyStageBase} ${state}`}>
+          <div
+            className={`group/paid ${buyStageBase} ${state}`}
+            data-paid={state === 'paid'}
+          >
             <div className={buyHead}>
               <span>{header.brand}</span>
               <span className="text-[color:var(--mk-text)]">
@@ -231,7 +234,7 @@ function PaidBody() {
     <div className="flex flex-1 flex-col items-center justify-center">
       <div
         aria-hidden="true"
-        className="cashapp-check mb-4 grid h-12 w-12 place-items-center rounded-full bg-[#00d54f] text-black"
+        className="cashapp-check mb-4 grid h-12 w-12 place-items-center rounded-full bg-[#00d54f] text-black group-data-[paid=true]/paid:animate-confirm-pop"
       >
         <svg
           viewBox="0 0 24 24"
@@ -250,7 +253,7 @@ function PaidBody() {
           />
         </svg>
       </div>
-      <div className="cashapp-headline mb-[14px] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em] [font-family:var(--mk-font-display)]">
+      <div className="cashapp-headline mb-[14px] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em] [font-family:var(--mk-font-display)] group-data-[paid=true]/paid:animate-confirm-pop group-data-[paid=true]/paid:[animation-delay:80ms]">
         You paid $7.98
       </div>
     </div>

@@ -20,7 +20,7 @@ export function WalletSection() {
       <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[42%_1fr] md:items-center md:gap-20">
         <div className="text-center md:text-left">
           <SectionLabel href="#wallet">04_wallet</SectionLabel>
-          <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:hidden">
+          <h2 className="mt-8 font-medium text-3xl leading-[1.15] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:hidden">
             <a href="#wallet">The most advanced bitcoin wallet.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:hidden">
@@ -73,7 +73,7 @@ export function WalletSection() {
         </div>
 
         <div>
-          <h2 className="hidden font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:block md:text-5xl">
+          <h2 className="hidden font-medium text-3xl leading-[1.15] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:block md:text-5xl">
             <a href="#wallet">The most advanced bitcoin wallet.</a>
           </h2>
           <p className="mt-6 hidden text-[color:var(--mk-text-dim)] leading-relaxed md:block md:text-lg">
@@ -95,7 +95,7 @@ export function WalletSection() {
                   {s.label}
                 </span>
                 <span
-                  className="spec-leader-line hidden md:block"
+                  className="hidden h-px self-center bg-[length:6px_1px] bg-[radial-gradient(circle,var(--mk-text-muted)_0.6px,transparent_0.6px)] bg-repeat-x opacity-60 [background-position:0_50%] md:block"
                   aria-hidden="true"
                 />
                 <span className="text-right text-[11px] text-[color:var(--mk-text)] uppercase tabular-nums tracking-[0.12em] [font-family:var(--mk-font-mono)]">

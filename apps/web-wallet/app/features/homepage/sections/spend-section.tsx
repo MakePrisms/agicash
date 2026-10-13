@@ -44,7 +44,7 @@ export function SpendSection() {
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
           <SectionLabel href="#spend">03_spend</SectionLabel>
-          <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:mt-10 md:text-5xl">
+          <h2 className="mt-8 font-medium text-3xl leading-[1.15] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:mt-10 md:text-5xl">
             <a href="#spend">Spend. Scan. Done.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
@@ -52,7 +52,7 @@ export function SpendSection() {
             wallet. Bitcoin lands instantly at the merchant. No card networks or
             bank intermediaries.
           </p>
-          <div className="mt-6 font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+          <div className="mt-6 text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
             settled instantly · 0% fee
           </div>
         </div>
@@ -60,22 +60,23 @@ export function SpendSection() {
         <div className="flex justify-center">
           <div
             ref={stageRef}
-            className={`pay-stage relative mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-6 pb-[22px] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)] [font-family:var(--mk-font-display)] ${playing ? 'playing' : ''}`}
+            data-playing={playing}
+            className="group/playing pay-stage relative mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-6 pb-[22px] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)] [font-family:var(--mk-font-display)]"
           >
             <div className="mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
               <span>pay with bitcoin</span>
               <span className="text-[color:var(--mk-text)]">pubkey dc</span>
             </div>
 
-            <div className="pay-qr-wrap relative mx-auto aspect-square w-[55%] max-w-[200px] transform-gpu overflow-hidden rounded-lg bg-[#f4f7ff] transition-opacity duration-[360ms]">
+            <div className="pay-qr-wrap relative mx-auto aspect-square w-[55%] max-w-[200px] transform-gpu overflow-hidden rounded-lg bg-[#f4f7ff] transition-opacity duration-[360ms] group-data-[playing=true]/playing:animate-pay-qr-cycle">
               <div className="absolute inset-2.5 overflow-hidden">
                 <QrPattern />
               </div>
               <span
                 aria-hidden="true"
-                className="pay-scanline pointer-events-none absolute right-[6%] left-[6%] h-0.5 bg-[color:var(--mk-brand)] opacity-0 shadow-[0_0_12px_rgba(0,212,255,0.6)]"
+                className="pay-scanline pointer-events-none absolute right-[6%] left-[6%] h-0.5 bg-[color:var(--mk-brand)] opacity-0 shadow-[0_0_12px_rgba(0,212,255,0.6)] group-data-[playing=true]/playing:animate-pay-scan-cycle"
               />
-              <div className="pay-paid pointer-events-none absolute inset-2.5 grid place-items-center bg-[#04080f] opacity-0">
+              <div className="pay-paid pointer-events-none absolute inset-2.5 grid place-items-center bg-[#04080f] opacity-0 group-data-[playing=true]/playing:animate-pay-paid-cycle">
                 <div
                   aria-hidden="true"
                   className="grid h-16 w-16 place-items-center rounded-full border-2 border-[color:var(--mk-brand)] text-[32px] text-[color:var(--mk-brand)]"
@@ -98,10 +99,10 @@ export function SpendSection() {
             </div>
 
             <div className="relative mt-4 h-7 border-[color:var(--mk-border)] border-t pt-[14px] text-[11px] uppercase tracking-[0.12em] [font-family:var(--mk-font-mono)]">
-              <span className="pay-status-scan absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-text-muted)] opacity-100">
+              <span className="pay-status-scan absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-text-muted)] opacity-100 group-data-[playing=true]/playing:animate-pay-status-scan">
                 scan to pay
               </span>
-              <span className="pay-status-paid absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-brand)] opacity-0">
+              <span className="pay-status-paid absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-brand)] opacity-0 group-data-[playing=true]/playing:animate-pay-status-paid">
                 paid
               </span>
             </div>
