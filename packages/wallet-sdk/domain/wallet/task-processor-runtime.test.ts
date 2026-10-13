@@ -6,7 +6,9 @@ import {
   NotImplementedError,
 } from '../../lib/error';
 import { nullLogger } from '../../lib/logger';
+import type { ScopeClock } from '../../lib/run-scope';
 import type {
+  ActivityMonitor,
   AuthKeyValueStore,
   AuthSession,
   Logger,
@@ -15,9 +17,7 @@ import type {
 } from '../sdk';
 import { AgicashSdk } from '../sdk/sdk';
 import {
-  type DocumentActivity,
   type TaskProcessorDeps,
-  type TaskProcessorSeams,
   createTaskProcessor,
 } from './task-processor-runtime';
 
@@ -30,6 +30,11 @@ const loggedIn = {
 } as AuthSession;
 
 const loggedOut: AuthSession = { isLoggedIn: false };
+
+const alwaysActive: ActivityMonitor = {
+  isActive: () => true,
+  subscribe: () => () => undefined,
+};
 
 type RecordedTimer = {
   ms: number;
@@ -54,11 +59,9 @@ function flush(): Promise<void> {
   });
 }
 
-function createRecordingClock(): {
+function createRecordingClock(): ScopeClock & {
   intervals: RecordedTimer[];
   timeouts: RecordedTimer[];
-  setInterval: NonNullable<TaskProcessorSeams['setInterval']>;
-  setTimeout: NonNullable<TaskProcessorSeams['setTimeout']>;
 } {
   const intervals: RecordedTimer[] = [];
   const timeouts: RecordedTimer[] = [];
@@ -86,19 +89,16 @@ function createRecordingClock(): {
   };
 }
 
-function createActivity(initial: { foreground: boolean; online?: boolean }): {
-  activity: DocumentActivity;
-  setForeground: (value: boolean) => void;
-  setOnline: (value: boolean) => void;
+function createActivity(initial: { active: boolean }): {
+  activity: ActivityMonitor;
+  setActive: (value: boolean) => void;
   notify: () => void;
 } {
-  let foreground = initial.foreground;
-  let online = initial.online ?? true;
+  let active = initial.active;
   let listener: (() => void) | undefined;
   return {
     activity: {
-      isForeground: () => foreground,
-      isOnline: () => online,
+      isActive: () => active,
       subscribe: (onChange) => {
         listener = onChange;
         return () => {
@@ -108,11 +108,8 @@ function createActivity(initial: { foreground: boolean; online?: boolean }): {
         };
       },
     },
-    setForeground: (value) => {
-      foreground = value;
-    },
-    setOnline: (value) => {
-      online = value;
+    setActive: (value) => {
+      active = value;
     },
     notify: () => {
       listener?.();
@@ -122,8 +119,8 @@ function createActivity(initial: { foreground: boolean; online?: boolean }): {
 
 function createHarness(options?: {
   session?: AuthSession;
-  takeLead?: TaskProcessorSeams['takeLead'];
-  activity?: DocumentActivity;
+  takeLead?: TaskProcessorDeps['takeLead'];
+  activity?: ActivityMonitor;
   db?: AgicashDb;
   clock?: boolean;
   randomUUID?: boolean;
@@ -171,31 +168,24 @@ function createHarness(options?: {
     },
     error: () => undefined,
   };
-  const seams: TaskProcessorSeams = {
-    takeLead,
-  };
-  if (options?.activity) {
-    seams.activity = options.activity;
-  }
-  if (clock) {
-    seams.setInterval = clock.setInterval;
-    seams.setTimeout = clock.setTimeout;
-  }
-  if (options?.randomUUID !== false) {
-    seams.randomUUID = () => {
-      const id = uuids[uuidCount] ?? CLIENT_B;
-      uuidCount += 1;
-      return id;
-    };
-  }
   const deps: TaskProcessorDeps = {
     db: options?.db ?? ({} as AgicashDb),
     getSession: () => session,
+    activity: options?.activity ?? alwaysActive,
     emit: (payload) => {
       emits.push(payload);
     },
     logger,
-    seams,
+    takeLead,
+    clock,
+    randomUUID:
+      options?.randomUUID === false
+        ? undefined
+        : () => {
+            const id = uuids[uuidCount] ?? CLIENT_B;
+            uuidCount += 1;
+            return id;
+          },
   };
   return {
     processor: createTaskProcessor(deps),
@@ -245,6 +235,7 @@ const createMemoryStore = (): AuthKeyValueStore => {
 
 const createConfig = (): SdkConfig => ({
   db: { url: 'http://localhost:54321', anonKey: 'anon-key' },
+  activity: alwaysActive,
   auth: {
     apiUrl: 'http://localhost:3100',
     clientId: '00000000-0000-0000-0000-000000000000',
@@ -331,16 +322,16 @@ describe('createTaskProcessor', () => {
     expect(harness.clock?.intervals).toHaveLength(1);
   });
 
-  it('(e) keeps a hidden leader and refetches once it is visible again', async () => {
-    const activity = createActivity({ foreground: true });
+  it('(e) keeps an inactive leader and refetches once it is active again', async () => {
+    const activity = createActivity({ active: true });
     const harness = createHarness({ activity: activity.activity });
     await becomeLeader(harness);
-    activity.setForeground(false);
+    activity.setActive(false);
     harness.clock?.intervals[0]?.callback();
     await flush();
     expect(harness.calls).toHaveLength(1);
     expect(harness.processor.state).toBe('leader');
-    activity.setForeground(true);
+    activity.setActive(true);
     activity.notify();
     await flush();
     expect(harness.calls).toHaveLength(2);
@@ -349,17 +340,22 @@ describe('createTaskProcessor', () => {
     expect(harness.processor.state).toBe('follower');
   });
 
-  it('(f) attempts on mount while hidden and skips the hidden interval', async () => {
-    const activity = createActivity({ foreground: false });
+  it('(f) does not attempt while inactive and attempts once on activation', async () => {
+    const activity = createActivity({ active: false });
     const harness = createHarness({ activity: activity.activity });
     harness.processor.start();
+    expect(harness.processor.state).toBe('follower');
+    expect(harness.calls).toHaveLength(0);
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(0);
+    activity.setActive(true);
+    activity.notify();
+    await flush();
     expect(harness.calls).toHaveLength(1);
     harness.calls[0]?.resolve(true);
     await flush();
     expect(harness.processor.state).toBe('leader');
-    harness.clock?.intervals[0]?.callback();
-    await flush();
-    expect(harness.calls).toHaveLength(1);
   });
 
   it('(g) retries three times, warns, and starts a fresh cycle on the next tick', async () => {
@@ -408,8 +404,8 @@ describe('createTaskProcessor', () => {
     expect(harness.calls).toHaveLength(6);
   });
 
-  it('(h) keeps a parked retry parked through a hidden interval tick', async () => {
-    const activity = createActivity({ foreground: true });
+  it('(h) abandons a retry while inactive and bids afresh on activation', async () => {
+    const activity = createActivity({ active: true });
     const harness = createHarness({ activity: activity.activity });
     await becomeLeader(harness);
     harness.clock?.intervals[0]?.callback();
@@ -418,13 +414,13 @@ describe('createTaskProcessor', () => {
     await flush();
     const delay = latestTimeout(harness.clock?.timeouts ?? [], 1000);
     delay.callback();
-    activity.setForeground(false);
+    activity.setActive(false);
     await flush();
     expect(harness.calls).toHaveLength(2);
     harness.clock?.intervals[0]?.callback();
     await flush();
     expect(harness.calls).toHaveLength(2);
-    activity.setForeground(true);
+    activity.setActive(true);
     activity.notify();
     await flush();
     expect(harness.calls).toHaveLength(3);
@@ -522,7 +518,7 @@ describe('createTaskProcessor', () => {
   });
 
   it('(m) ignores activity and interval kicks while a takeLead is in flight', async () => {
-    const activity = createActivity({ foreground: true });
+    const activity = createActivity({ active: true });
     const harness = createHarness({ activity: activity.activity });
     harness.processor.start();
     expect(harness.calls).toHaveLength(1);
@@ -555,6 +551,7 @@ describe('createTaskProcessor', () => {
     const processor = createTaskProcessor({
       db,
       getSession: () => loggedIn,
+      activity: alwaysActive,
       emit: () => undefined,
       logger: {
         debug: () => undefined,
@@ -562,14 +559,11 @@ describe('createTaskProcessor', () => {
         warn: () => undefined,
         error: () => undefined,
       },
-      seams: {
-        randomUUID: () => {
-          uuidCount += 1;
-          return uuidCount === 1 ? CLIENT_A : CLIENT_B;
-        },
-        setInterval: clock.setInterval,
-        setTimeout: clock.setTimeout,
+      randomUUID: () => {
+        uuidCount += 1;
+        return uuidCount === 1 ? CLIENT_A : CLIENT_B;
       },
+      clock,
     });
     processor.start();
     expect(rpcCalls).toEqual([
@@ -586,11 +580,8 @@ describe('createTaskProcessor', () => {
     await processor.stop();
   });
 
-  it('(o) treats a missing document as foreground', async () => {
-    if ((globalThis as { document?: unknown }).document !== undefined) {
-      return;
-    }
-    const harness = createHarness();
+  it('(o) polls unconditionally under alwaysActive', async () => {
+    const harness = createHarness({ activity: alwaysActive });
     harness.processor.start();
     expect(harness.calls).toHaveLength(1);
     harness.calls[0]?.resolve(true);
@@ -626,101 +617,5 @@ describe('createTaskProcessor', () => {
         await sdk.dispose();
       }
     }
-  });
-
-  it('(q) an idle offline-to-online flip renews while hidden', async () => {
-    const activity = createActivity({ foreground: true, online: true });
-    const harness = createHarness({ activity: activity.activity });
-    await becomeLeader(harness);
-    activity.setForeground(false);
-    activity.setOnline(false);
-    activity.notify();
-    await flush();
-    expect(harness.calls).toHaveLength(1);
-    activity.setOnline(true);
-    activity.notify();
-    await flush();
-    expect(harness.calls).toHaveLength(2);
-    harness.calls[1]?.resolve(true);
-    await flush();
-    expect(harness.processor.state).toBe('leader');
-    expect(
-      harness.emits.filter((payload) => payload.state === 'leader'),
-    ).toHaveLength(1);
-    expect(harness.debugLog).toHaveLength(1);
-  });
-
-  it('(r) keeps the online flag fresh across stop/start (default activity)', async () => {
-    const host = globalThis as { window?: unknown; document?: unknown };
-    const savedWindow = host.window;
-    const savedDocument = host.document;
-    const listeners = new Map<string, Set<() => void>>();
-    host.window = {
-      addEventListener: (type: string, listener: () => void) => {
-        const set = listeners.get(type) ?? new Set<() => void>();
-        set.add(listener);
-        listeners.set(type, set);
-      },
-      removeEventListener: (type: string, listener: () => void) => {
-        listeners.get(type)?.delete(listener);
-      },
-    };
-    host.document = { visibilityState: 'visible' };
-    const fire = (type: string) => {
-      for (const listener of listeners.get(type) ?? []) {
-        listener();
-      }
-    };
-    try {
-      const harness = createHarness();
-      harness.processor.start();
-      expect(harness.calls).toHaveLength(1);
-      harness.calls[0]?.resolve(true);
-      await flush();
-      expect(harness.processor.state).toBe('leader');
-      fire('offline');
-      await flush();
-      expect(harness.calls).toHaveLength(1);
-      await harness.processor.stop();
-      expect(listeners.get('visibilitychange')?.size ?? 0).toBe(0);
-      fire('online');
-      harness.processor.start();
-      expect(harness.calls).toHaveLength(2);
-      harness.calls[1]?.resolve(true);
-      await flush();
-      expect(harness.processor.state).toBe('leader');
-      await harness.processor.stop();
-    } finally {
-      host.window = savedWindow;
-      host.document = savedDocument;
-    }
-  });
-
-  it('(s) a parked retry ignores an online flip while hidden', async () => {
-    const activity = createActivity({ foreground: true, online: true });
-    const harness = createHarness({ activity: activity.activity });
-    await becomeLeader(harness);
-    harness.clock?.intervals[0]?.callback();
-    await flush();
-    expect(harness.calls).toHaveLength(2);
-    harness.calls[1]?.reject(new Error('db down'));
-    await flush();
-    activity.setForeground(false);
-    activity.setOnline(false);
-    activity.notify();
-    latestTimeout(harness.clock?.timeouts ?? [], 1000).callback();
-    await flush();
-    expect(harness.calls).toHaveLength(2);
-    activity.setOnline(true);
-    activity.notify();
-    await flush();
-    expect(harness.calls).toHaveLength(2);
-    activity.setForeground(true);
-    activity.notify();
-    await flush();
-    expect(harness.calls).toHaveLength(3);
-    harness.calls[2]?.resolve(true);
-    await flush();
-    expect(harness.processor.state).toBe('leader');
   });
 });

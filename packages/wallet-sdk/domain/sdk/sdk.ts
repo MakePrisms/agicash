@@ -157,6 +157,7 @@ export class AgicashSdk implements Sdk {
     taskProcessor = createTaskProcessor({
       db,
       getSession: getLiveSession,
+      activity: config.activity,
       emit: (payload) => events.emit('task-processor.state-changed', payload),
       logger: config.logger,
     });
@@ -238,11 +239,10 @@ export class AgicashSdk implements Sdk {
   }
 
   async dispose(): Promise<void> {
-    await this.taskProcessor.stop();
+    // The flag goes first so a start() during the stop() drain below throws
+    // DisposedError instead of arming a loop that outlives the instance.
     this.disposed = true;
-    // A start() that slipped in during the await above armed a live loop on a
-    // now-disposed instance; this second stop() is idempotent and tears it down.
-    void this.taskProcessor.stop();
+    await this.taskProcessor.stop();
     this.authService.teardown();
     this.keys.dispose();
     if (currentInstance === this) {

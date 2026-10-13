@@ -8,7 +8,7 @@
 
 ## Global constraints
 
-- **No contract drift.** Do not edit `packages/wallet-sdk/domain/sdk/task-processor.ts`, `domain/sdk/events.ts`, `domain/sdk/index.ts`, or `packages/wallet-sdk/index.ts`. `start(): void` throws an `SdkError` when there is no authenticated session (`task-processor.ts:10–13`). `stop(): Promise<void>` matches the JSDoc (`:14–19`). `state` is `'stopped' | 'follower' | 'leader' | 'error'` (`:1`, `:20`). Do not add a `background` alias, a processor-registration method, or a `userId` parameter (proposal `:297–301`: user id is implicit).
+- **No contract drift.** Do not edit `packages/wallet-sdk/domain/sdk/task-processor.ts`, `domain/sdk/events.ts`, `domain/sdk/index.ts`, or `packages/wallet-sdk/index.ts`. (Amended 2026-10-13: the maintainer approved one additive contract change in `domain/sdk/index.ts` — the `ActivityMonitor` type, the `alwaysActive` export, and the required `SdkConfig.activity` field; see "Activity port".) `start(): void` throws an `SdkError` when there is no authenticated session (`task-processor.ts:10–13`). `stop(): Promise<void>` matches the JSDoc (`:14–19`). `state` is `'stopped' | 'follower' | 'leader' | 'error'` (`:1`, `:20`). Do not add a `background` alias, a processor-registration method, or a `userId` parameter (proposal `:297–301`: user id is implicit).
 - **React-agnostic.** `packages/wallet-sdk` never imports `react` or `@tanstack/react-query`. The loop is a hand-rolled scheduler. No new dependencies, no `bun add`. `bun` / `bunx` only.
 - **No schema, RPC, or migration changes.** The only lock write is the existing `wallet.take_lead` (`packages/wallet-sdk/db/supabase/migrations/20260112150000_initial_db.sql:3461–3512`). Lease is `now() + interval '6 seconds'` (`:3473`). Do not add a release RPC, do not `UPDATE` or `DELETE` the lock row, do not run `db:generate-types`.
 - **Behavior parity for the lock.** 5s poll (`apps/web-wallet/app/features/wallet/task-processing.ts:39`), immediate attempt on start, skip interval ticks while the document is hidden (`:40`, decision 4), same client id across renewals, one in-flight `take_lead` at a time. The SQL row stays the one-leader mechanism across an old bundle and a new bundle. This slice removes the web poll in the same change that starts the SDK loop, so one tab never runs both.
@@ -51,18 +51,20 @@
 
    **Release.** "Releases the leader lock" means stop renewing. There is no release function in the migration (the only lock routine is `take_lead`, `:3461–3512`). The last successful call set `expires_at` to `now() + 6 seconds`. **Rejected:** `DELETE` or `expires_at = now()` under RLS. That is a new write, it shortens the lease, and a second client can enter before the previous processors have observed `'stopped'`. **Rejected:** blocking `stop()` on the React unmount. `start(): void` cannot await, and `stop()` has no hook back into React.
 
-   **Who awaits.** `dispose()` awaits `stop()` before `this.disposed = true` (`sdk.ts:225–232` today sets the flag first; this slice flips that order so `stop()` still runs). `AuthService.endSession` is synchronous (`auth-service.ts:359–368`) and already runs `onSessionEnded` after the snapshot is cleared (`:361`, `:367`). This slice does not edit `auth-service.ts`. `onSessionEnded` calls `void taskProcessor.stop()` as its first statement, before `sessionToken.reset()` (`sdk.ts:121`). The synchronous prefix therefore runs before `signOut()` resolves (`auth-service.ts:230–236` calls `endSession()` in `finally`). That is what `AuthApi.signOut`'s "Stops the task processor" sentence requires (`auth.ts:38–41`). The web effect also calls `void stop()` on cleanup. Both are idempotent. **Rejected:** making `endSession` async so `signOut` can await the checkpoint. Every `onSessionEnded` spy in `auth-service.test.ts` is written against the sync callback, and disposal-is-not-sign-out (`auth-service.ts:275–282`) must stay.
+   **Who awaits.** `dispose()` sets `this.disposed = true` FIRST and then awaits `stop()` (maintainer review 2026-10-13 re-flipped the original pin: `stop()` reads neither the session nor the flag, so it runs fine after the flag, and flag-first makes a `start()` during the drain throw `DisposedError` instead of arming a loop that outlives the instance). `AuthService.endSession` is synchronous (`auth-service.ts:359–368`) and already runs `onSessionEnded` after the snapshot is cleared (`:361`, `:367`). This slice does not edit `auth-service.ts`. `onSessionEnded` calls `void taskProcessor.stop()` as its first statement, before `sessionToken.reset()` (`sdk.ts:121`). The synchronous prefix therefore runs before `signOut()` resolves (`auth-service.ts:230–236` calls `endSession()` in `finally`). That is what `AuthApi.signOut`'s "Stops the task processor" sentence requires (`auth.ts:38–41`). The web effect also calls `void stop()` on cleanup. Both are idempotent. **Rejected:** making `endSession` async so `signOut` can await the checkpoint. Every `onSessionEnded` spy in `auth-service.test.ts` is written against the sync callback, and disposal-is-not-sign-out (`auth-service.ts:275–282`) must stay.
 
-4. **(d) Visibility and online gating live in a React-free helper. SSR does not call `start()`.** Master: `clientId` is `''` when `typeof window === 'undefined'`, and the query is `enabled: !!clientId` (`task-processing.ts:25–34`), so SSR issues no `take_lead` and starts no timer. `@tanstack/react-query` `5.90.20` (`apps/web-wallet/package.json:55`) with an unconfigured `QueryClient` (`query-client.ts:6`) then does all of the following on the client. Copy the observable policy, not the library:
+4. **(d) Activity gating comes from a host-supplied `ActivityMonitor` (`SdkConfig.activity`, required; the SDK reads no platform globals). SSR does not call `start()`.**
+
+   **Superseded by the single-flag model (maintainer 2026-10-13b).** The port carries ONE bit — `isActive()`: can and should this client run background work now — and the host computes it (the web adapter reports foreground AND online; a never-suspended host returns a constant true). Rationale: a backgrounded client may be throttled, frozen, or killed by its platform, so it is as unreliable as an offline one; both must stop renewing so a live client takes the lease. The runtime no longer distinguishes the two: every attempt path (mount, interval, resume, parked-retry release) gates on `isActive() && !inFlight`. Two deliberate deviations from the TanStack-parity baseline below: a hidden tab no longer mounts into leadership (it attempts on first activation), and a hidden tab no longer renews on an offline→online flip (the lease lapses to a live client within ~11s). The per-flag bullets below describe the pre-collapse parity baseline and stand as history. Master: `clientId` is `''` when `typeof window === 'undefined'`, and the query is `enabled: !!clientId` (`task-processing.ts:25–34`), so SSR issues no `take_lead` and starts no timer. `@tanstack/react-query` `5.90.20` (`apps/web-wallet/package.json:55`) with an unconfigured `QueryClient` (`query-client.ts:6`) then does all of the following on the client. Copy the observable policy, not the library:
 
    - **Immediate attempt on start,** even when the document is hidden. The initial `useQuery` fetch is not gated on focus. A background-opened tab can become leader and, per decision 1, stays leader without renewing.
    - **`setInterval(..., 5000)` armed at start,** not "5s after the RPC returns". A tick calls `take_lead` only when foreground and online and no attempt is in flight. A tick while hidden does not change `state`.
-   - **Foreground** means `document.visibilityState !== 'hidden'`. Missing `document` means foreground (headless / MCP / bun tests). Listen to `window`'s `visibilitychange`, the event TanStack's focus manager uses. Do not listen to `focus` / `blur`.
+   - **Active** comes from the host's monitor. The web adapter maps it to `document.visibilityState !== 'hidden'` and listens to `visibilitychange`, the event TanStack's focus manager uses — not `focus` / `blur`. The runtime itself only calls `isActive()`.
    - **Becoming foreground while the loop is running:** one immediate `take_lead` if foreground and online and nothing is in flight. This is `refetchOnWindowFocus` (library default `true`, stale time default `0`, so every return refetches).
    - **The `online` event while idle renews even when hidden (plan-attack F2).** Master's `Query.onOnline` refetches without consulting the focus manager (`query-core` `query.js` `onOnline`; default `refetchOnReconnect` is on for an unconfigured client). The SDK therefore calls `take_lead` on an offline→online flip when `isOnline() && !inFlight`, foreground not required. The kind-less activity callback cannot say which event fired: the runtime remembers the previous `isOnline()` value and treats a false→true change as this reconnect kick. A parked retry is different — it resumes only when foreground and online (`retryer` `canContinue`).
    - **Online flag starts `true`.** Flip it only on `window` `offline` / `online`. Do not read `navigator.onLine` at construction. TanStack's online manager starts `true` and learns from events; a page that loads offline still attempts until an `offline` event.
-   - **Retry pause.** After a failed attempt's delay, if the document is hidden or the online flag is false, wait until both are clear before the next try. The wait does not consume a retry. Only `stop()` or an activity change that lands runnable (foreground and online) wakes the wait (plan-attack F1): a hidden or offline interval tick must not release it, and after any wake the loop re-checks runnable and parks again when it is not. Master keeps a paused retry stuck until focus plus online (`retryer` `canContinue`), and a hidden interval tick never fetches (`queryObserver` interval gate), so a released-by-tick hidden `take_lead` would be a second-leader sequence master cannot run.
-   - **No window.** `subscribe` returns a no-op unsubscribe. `isForeground()` is true, `isOnline()` stays true. `start()` runs the loop. That is the MCP host (proposal `:267–268`: a request/response host must call `start()` or nothing moves money). **Rejected:** treating "no document" as "`start()` is a no-op". That would make the headless host's `start()` silent.
+   - **Retry pause.** After a failed attempt's delay, if the document is hidden or the online flag is false, wait until both are clear before the next try. The wait does not consume a retry. Only `stop()` or an activity change that lands runnable (foreground and online) wakes the wait (plan-attack F1): a hidden or offline interval tick must not release it, and after any wake the loop re-checks runnable and parks again when it is not. Master keeps a paused retry stuck until focus plus online (`retryer` `canContinue`), and a hidden interval tick never fetches (`queryObserver` interval gate), so a released-by-tick hidden `take_lead` would be a second-leader sequence master cannot run. *(Superseded 2026-10-13d: no pause — the bid is abandoned and the next activation restarts it; see the Runtime-behavior note.)*
+   - **No signal.** A host without one passes the exported `alwaysActive` monitor (active true, online true, no-op subscribe): `start()` polls unconditionally. That is the MCP host (proposal `:267–268`: a request/response host must call `start()` or nothing moves money). **Rejected:** treating "no signal" as "`start()` is a no-op". That would make the headless host's `start()` silent. **Rejected:** an optional config field with an always-active default — a browser host that forgot it would silently lose the hidden-tab economy; required-with-exported-default makes every host state its choice (the `auth.storage` adapter precedent).
    - **Web SSR no-op.** The only web caller is a `useEffect` (effects do not run on the server). Do not call `start()` from render, from the module scope, or from `AgicashSdk.create` / `init` / `onSessionStarted`. Protected routes set `clientLoader.hydrate = true` (`_protected.tsx:145–149`); the effect is still the guard, because the lead hook's own SSR guard shows the component was written to render with `window` missing. `useSyncExternalStore`'s server snapshot is `'stopped'`, so a server render does not mount `TaskProcessor`.
 
    **Rejected:** importing `@tanstack/query-core` to reuse `focusManager`. The SDK must not depend on TanStack. **Rejected:** `refetchIntervalInBackground: true`. Hidden tabs would keep the lease and two visible-policy tabs would no longer yield.
@@ -100,8 +102,8 @@
 
    ```ts
    async dispose(): Promise<void> {
-     await this.taskProcessor.stop();
      this.disposed = true;
+     await this.taskProcessor.stop();
      this.authService.teardown();
      this.keys.dispose();
      if (currentInstance === this) {
@@ -110,7 +112,7 @@
    }
    ```
 
-   HMR already returns `sdk.dispose()` (`sdk.client.ts:78–82`); the extra await is the checkpoint. Do not edit `sdk.client.ts`. `stop()` after `dispose()` resolves and does not throw (the prefix already ran; a host `finally` may call it). `start()` after `dispose()` throws `DisposedError` via `getLiveSession`.
+   HMR already returns `sdk.dispose()` (`sdk.client.ts:78–82`); the await is the checkpoint. Do not edit `sdk.client.ts`. `stop()` after `dispose()` resolves and does not throw (the prefix already ran; a host `finally` may call it). `start()` after `dispose()` throws `DisposedError` via `getLiveSession`, including during the drain (the flag is already set).
 
 8. **(h) Production `take_lead` goes through `TaskProcessingLockRepository` on the SDK's db client.** Construct `new TaskProcessingLockRepository(deps.db)` only when the test seam is absent. Pass `{ abortSignal }`. The web's `agicashDbClient` (`database.client.ts:11–45`) is no longer on this path. The SDK token getter is already warmed by `sdk.user.get()` in the protected middleware (`_protected.tsx:109`; memo documented at `db/supabase-session.ts:20–25`, filled at `:60–62`, hit at `:52–54`) before `Wallet`'s effect runs, so the first `take_lead` does not mint an extra Open Secret token versus a master load that already called `sdk.user.get()`. Do not edit `temporary.ts`. The repository export stays (`temporary.ts:141`) until step 19; after this slice nothing under `apps/` imports it.
 
@@ -135,44 +137,36 @@ import type { AuthSession, Logger } from '../sdk';
 import type { TaskProcessorApi, TaskProcessorState } from '../sdk/task-processor';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
 
-type LeadBoolean = boolean;
-
-export type DocumentActivity = {
-  isForeground(): boolean;
-  isOnline(): boolean;
-  /** Fires on visibility or online/offline changes. No-op unsubscribe when there is no window. */
-  subscribe(onChange: () => void): () => void;
-};
-
-export type TaskProcessorSeams = {
-  takeLead?: (
-    userId: string,
-    clientId: string,
-    options?: { abortSignal?: AbortSignal },
-  ) => Promise<LeadBoolean>;
-  activity?: DocumentActivity;
-  randomUUID?: () => string;
-  setInterval?: (callback: () => void, ms: number) => () => void;
-  setTimeout?: (callback: () => void, ms: number) => () => void;
-};
+type TakeLead = (
+  userId: string,
+  clientId: string,
+  options?: { abortSignal?: AbortSignal },
+) => Promise<boolean>;
 
 export type TaskProcessorDeps = {
   db: AgicashDb;
   getSession: () => AuthSession;
+  activity: ActivityMonitor; // the contract port; see "Activity port" below
   emit: (payload: { state: TaskProcessorState; error?: SdkError }) => void;
   logger: Logger;
-  seams?: TaskProcessorSeams;
+  /** Test seam; defaults to `TaskProcessingLockRepository.takeLead` on `db`. */
+  takeLead?: TakeLead;
+  /** Test seam; defaults to `globalThis.crypto.randomUUID`. */
+  randomUUID?: () => string;
+  /** Test seam; defaults to the global `setInterval` / `setTimeout`. */
+  clock?: ScopeClock;
 };
 
 export function createTaskProcessor(deps: TaskProcessorDeps): TaskProcessorApi;
 ```
 
-`import type` for `AuthSession` / `Logger` / `TaskProcessorApi` so the runtime does not value-import `sdk.ts` (that file value-imports the runtime). Let `bun run fix:all` fix import order. Production `AgicashSdk` passes no `seams`. Defaults:
+Seams are flat optional members of `Deps`, each tagged `/** Test seam; defaults to … */` — the house pattern of the `create*Api` factories (`receive-api.ts`, `send-api.ts`, `accounts-api.ts`, `transfer-api.ts`). The originally pinned nested `seams?: TaskProcessorSeams` bag was flattened in the maintainer round of 2026-10-13, and the two timer seams became one `clock?: ScopeClock` (the type `lib/run-scope.ts` already defines). `import type` for `AuthSession` / `Logger` / `TaskProcessorApi` so the runtime does not value-import `sdk.ts` (that file value-imports the runtime). Let `bun run fix:all` fix import order. Production `AgicashSdk` passes no seams. Defaults:
 
 - `takeLead`: `new TaskProcessingLockRepository(deps.db).takeLead(userId, clientId, options)`.
 - `randomUUID`: `() => globalThis.crypto.randomUUID()`.
-- `setInterval` / `setTimeout`: the globals, each returning a function that clears that one id.
-- `activity`: `createDefaultDocumentActivity()` below.
+- `clock`: a module-level `systemClock` over the global `setInterval` / `setTimeout`, each returning a function that clears that one id.
+
+`activity` is NOT a seam: it is a required dep, wired from `SdkConfig.activity` (maintainer 2026-10-13).
 
 Return a facade object, not the class, so only `start`, `stop`, and `state` are reachable:
 
@@ -186,15 +180,16 @@ return {
 };
 ```
 
-### Default activity
+### Activity port (reshaped per maintainer review 2026-10-13, collapsed to one flag 2026-10-13b)
 
-No DOM lib (`packages/wallet-sdk/tsconfig.json:6` is `ES2022`). Read the environment off `globalThis` with a narrow cast. Do not throw when `document` or `window` is missing.
+The contract (`domain/sdk/index.ts`) owns the neutral port; the browser sensing lives in the web host. No `document` / `window` word remains in `packages/wallet-sdk`.
 
-- `isForeground()`: read `document.visibilityState`. If `document` is missing or `visibilityState` is missing, return `true`. Otherwise return `visibilityState !== 'hidden'`.
-- `isOnline()`: a flag starting `true`. Not `navigator.onLine`.
-- `subscribe`: if `window.addEventListener` is not a function, return `() => undefined`. Otherwise, on the first subscribe only, install lifetime `offline` / `online` listeners that write the flag and are never removed — the flag must keep learning between `stop()` and the next `start()`, or a restarted loop is blind to an offline→online flip that happened while unsubscribed (adversarial-review finding R1; master's `onlineManager` listens for the `QueryClient` lifetime). Then add per-subscription forward listeners (`visibilitychange` / `offline` / `online` → `onChange`), all `false` for the capture argument. The unsubscribe removes only the three forward listeners.
+- `ActivityMonitor` = `{ isActive(); subscribe(onChange) → unsubscribe }`, a required `SdkConfig.activity` field. One bit: false while the host is backgrounded or offline. There is NO SDK-exported implementation (maintainer: the `auth.storage` pattern — every host implements the port; tests inline a constant-true monitor).
+- The web adapter is `apps/web-wallet/app/features/shared/browser-activity.client.ts`: `isActive` = `document.visibilityState !== 'hidden' && online`, where `online` is a flag starting `true` (never `navigator.onLine`); `subscribe` installs lifetime `offline` / `online` listeners that write the flag and are never removed — the flag must keep learning between `stop()` and the next `start()`, or a restarted loop is blind to an offline→online flip that happened while unsubscribed (adversarial-review finding R1; master's `onlineManager` listens for the `QueryClient` lifetime) — plus per-subscription forward listeners (`visibilitychange` / `offline` / `online` → `onChange`) that the unsubscribe removes. Its two tests (the conjunction, the lifetime flag) live beside it in the web package.
 
 ### Runtime behavior
+
+**Superseded in mechanics, not in behavior (maintainer 2026-10-13c).** The cancellation machinery described below — the generation fence, `cancelDelay`, `runnableWaiter`, the checkpoint set, the stop token — moved into the generic `packages/wallet-sdk/lib/run-scope.ts` (`createRunScopes`: `renew`/`cancel`/`join`; `RunScope`: `alive`/`signal`/`delay`/`track`/`every`/`onCleanup`). Scope identity replaces the generation integer; `attempt` is named `bidForLead`; `tick`/`onActivity`/`kick` are gone: every trigger (start, the interval, an activity change) calls `bidForLead` directly, which owns all of its guards (scope alive, no bid in flight, host active) — maintainer 2026-10-13e. All 16 lettered tests pass unchanged against the new shape — the behaviors below still bind. One deliberate improvement over the text below: work still unsettled when the stop bound fires is purged from the checkpoint set (the contract's "abandons the remaining queue"), so a hung request taxes `stop()` once, not forever. The 18.2 sagas `scope.track()` their iterations into the same join. **Park removed (maintainer 2026-10-13d).** The retry park (`waitUntilRunnable` / `runnableWaiter` below, later `scope.waitFor` / `scope.wake`) is gone: a bid that finds the host inactive after a backoff is ABANDONED — it returns and clears `inFlight` — and the next activation starts a fresh bid with a fresh retry budget. Observably equivalent for the F1 rule (no `take_lead` while inactive; exactly one on activation), and simpler, because `take_lead` is idempotent and its state lives in the lock row. The same rule applies to the 18.2 sagas, whose state is durable: a stopped or inactive saga is cancelled and the next leader picks the work up from the database; no suspended in-memory continuation survives a change of conditions. Test (h) keeps its assertions under the new name "abandons a retry while inactive and bids afresh on activation".
 
 `state` starts `'stopped'`. `transition(next, error?)`: if `next === this.current` and `next !== 'error'`, return. Else set current, set `failure` to `error` only when `next === 'error'` (otherwise `undefined`), and `emit` either `{ state: 'error', error }` or `{ state: next }` with exactly the key `state`.
 
@@ -302,7 +297,10 @@ function getTaskProcessorSnapshot(): {
   return cached;
 }
 
-export function useRunTaskProcessor(): void {
+export function useTaskProcessor(): {
+  state: TaskProcessorState;
+  error?: SdkError;
+} {
   const userId = useUser((user) => user.id);
   useEffect(() => {
     sdk.taskProcessor.start();
@@ -310,12 +308,6 @@ export function useRunTaskProcessor(): void {
       void sdk.taskProcessor.stop();
     };
   }, [userId]);
-}
-
-export function useTaskProcessorSnapshot(): {
-  state: TaskProcessorState;
-  error?: SdkError;
-} {
   return useSyncExternalStore(
     subscribeTaskProcessor,
     getTaskProcessorSnapshot,
@@ -324,17 +316,21 @@ export function useTaskProcessorSnapshot(): {
 }
 ```
 
+One hook, not a run/snapshot pair (merged per maintainer review 2026-10-13 — the wallet layout is the only caller and no other caller is planned). The effect owns the loop: its cleanup stops task processing for the tab, so exactly one mounted component may call it.
+
+```ts
+```
+
 `subscribe`'s `'error'` branch without a payload exists only for the reconcile-before-subscribe case. This slice never sets `'error'`, so that branch does not run. Do not invent an `SdkError` there.
 
 `useUser` is already the import path `../user/user-hooks` (`wallet.tsx:8`). `TaskProcessor` stays in this file, so this module keeps importing the six hooks.
 
 ### Web (`apps/web-wallet/app/features/wallet/wallet.tsx`)
 
-Replace the `task-processing` import (`:9`) with `TaskProcessor`, `useRunTaskProcessor`, `useTaskProcessorSnapshot`. Keep `useTrackWalletChanges()` and `useSupabaseRealtimeActivityTracking(agicashRealtimeClient)` where they are (`:53–54`). Replace `:57–61` with:
+Replace the `task-processing` import (`:9`) with `TaskProcessor`, `useTaskProcessor`. Keep `useTrackWalletChanges()` and `useSupabaseRealtimeActivityTracking(agicashRealtimeClient)` where they are (`:53–54`). Replace `:57–61` with:
 
 ```ts
-  useRunTaskProcessor();
-  const taskProcessor = useTaskProcessorSnapshot();
+  const taskProcessor = useTaskProcessor();
   if (taskProcessor.state === 'error') {
     throw (
       taskProcessor.error ?? new Error('Task processor entered error')
@@ -359,15 +355,16 @@ The `throw` is the host recovery from proposal `:286–287`. It is unreachable i
 - `take-lead` — zero hits under `apps/`.
 - `TaskProcessingLockRepository` — zero hits under `apps/`. The class, the runtime, and `temporary.ts:141` still match under `packages/`.
 - `refetchInterval: 5000` — zero hits under `apps/web-wallet/app/features/wallet/`.
-- `from 'react'` and `@tanstack/react-query` — zero hits under `packages/wallet-sdk/domain/wallet/task-processor-runtime.ts`.
+- `from 'react'` and `@tanstack/react-query` — zero hits under `packages/wallet-sdk/domain/wallet/task-processor-runtime.ts` and `packages/wallet-sdk/lib/run-scope.ts`.
+- `document` and `window` — zero hits under `packages/wallet-sdk/domain/wallet/` (the browser sensing lives in `apps/web-wallet/app/features/shared/browser-activity.client.ts`).
 - `connection.changed` and `` `wallet:` `` — zero hits under `task-processor-runtime.ts`.
 - `console.` — zero hits under `task-processor-runtime.ts`.
 
 ## File map
 
-Modify `packages/wallet-sdk/domain/sdk/sdk.ts`, `apps/web-wallet/app/features/wallet/wallet.tsx`, `apps/web-wallet/app/features/wallet/task-processing.ts`. Create `packages/wallet-sdk/domain/wallet/task-processor-runtime.ts`, `packages/wallet-sdk/domain/wallet/task-processor-runtime.test.ts`.
+Modify `packages/wallet-sdk/domain/sdk/sdk.ts`, `apps/web-wallet/app/features/wallet/wallet.tsx`, `apps/web-wallet/app/features/wallet/task-processing.ts`. Create `packages/wallet-sdk/domain/wallet/task-processor-runtime.ts`, `packages/wallet-sdk/domain/wallet/task-processor-runtime.test.ts`. Maintainer round 2026-10-13 adds: modify `packages/wallet-sdk/domain/sdk/index.ts` (the activity contract) and `apps/web-wallet/app/features/shared/sdk.client.ts` (passes `browserActivity`); create `apps/web-wallet/app/features/shared/browser-activity.client.ts` and `browser-activity.test.ts`. The 2026-10-13c RunScope extraction adds `packages/wallet-sdk/lib/run-scope.ts`.
 
-Untouched: `domain/sdk/task-processor.ts`, `domain/sdk/events.ts`, `domain/sdk/index.ts`, `packages/wallet-sdk/index.ts`, `temporary.ts`, `domain/user/auth-service.ts`, `domain/wallet/task-processing-lock-repository.ts`, `db/client.ts`, `sdk.client.ts`, `use-track-wallet-changes.ts`, `apps/web-wallet/app/lib/supabase/**`, `database.client.ts`, `root.tsx`, the six `useProcess*` modules, every RPC and migration.
+Untouched: `domain/sdk/task-processor.ts`, `domain/sdk/events.ts`, `packages/wallet-sdk/index.ts`, `temporary.ts`, `domain/user/auth-service.ts`, `domain/wallet/task-processing-lock-repository.ts`, `db/client.ts`, `use-track-wallet-changes.ts`, `apps/web-wallet/app/lib/supabase/**`, `database.client.ts`, `root.tsx`, the six `useProcess*` modules, every RPC and migration. (`domain/sdk/index.ts` and `sdk.client.ts` left this list in the 2026-10-13 maintainer round.)
 
 ## Task specs
 
@@ -377,7 +374,7 @@ Untouched: `domain/sdk/task-processor.ts`, `domain/sdk/events.ts`, `domain/sdk/i
 
 1. **Read first:** `task-processor.ts`, `events.ts` (`:64–78`, `:82–167`), `sdk.ts` (constructor, `getLiveSession`, `dispose`), `auth.ts:38–41`, `auth-service.ts` `signOut` / `endSession` / the id-change branch (`:230–236`, `:348–368`), `task-processing-lock-repository.ts`, `task-processing.ts`, `wallet.tsx`, `use-track-wallet-changes.ts:74–149`, `initial_db.sql:3461–3512`. Do not port the feed.
 2. **Runtime** (pinned seams). No `console`. No React.
-3. **Tests** in `task-processor-runtime.test.ts`. `bun:test`. No supabase, no Breez, no mint. Logger is a recording fake; empty methods are `() => undefined` (`noEmptyBlockStatements`). Session fixture: `{ isLoggedIn: true, user: { id: 'user-1' } } as AuthSession` and `{ isLoggedIn: false }`. `db` is `{} as AgicashDb` whenever `seams.takeLead` is set. Every test except (p) passes a recording clock: `setInterval` and `setTimeout` record `{ ms, callback, cancel }` and do not call `callback` until the test does. `randomUUID` returns `'00000000-0000-4000-8000-000000000001'` then `'00000000-0000-4000-8000-000000000002'`. Tests that care about visibility pass `seams.activity`. (p) constructs `AgicashSdk` and passes no seams.
+3. **Tests** in `task-processor-runtime.test.ts`. `bun:test`. No supabase, no Breez, no mint. Logger is a recording fake; empty methods are `() => undefined` (`noEmptyBlockStatements`). Session fixture: `{ isLoggedIn: true, user: { id: 'user-1' } } as AuthSession` and `{ isLoggedIn: false }`. `db` is `{} as AgicashDb` whenever the `takeLead` seam is set. Every test except (p) passes a recording `clock`: its `setInterval` and `setTimeout` record `{ ms, callback, cancel }` and do not call `callback` until the test does. `randomUUID` returns `'00000000-0000-4000-8000-000000000001'` then `'00000000-0000-4000-8000-000000000002'`. Tests that care about activity pass their own `activity` monitor. (p) constructs `AgicashSdk` and passes no seams.
 
    - **(a) No session.** `getSession` logged out. `start()` throws `NoSessionError`. `takeLead` was not called. `state` is `'stopped'`. `emit` was not called. `setInterval` was not called.
    - **(b) Mount, leader, renewal, payload keys.** Deferred `takeLead`. `start()` returns `undefined` (assert without `await`). `emit` has been called once with `{ state: 'follower' }`. `Object.keys` of that payload equals `['state']`. `takeLead` was called once with `('user-1', '00000000-0000-4000-8000-000000000001')` and an `AbortSignal`. Resolve `true`. `state` is `'leader'`. Second emit is `{ state: 'leader' }` and `Object.keys` equals `['state']`. Logger debug was called once with `'Taking lead on task processing'` and `{ clientId: '00000000-0000-4000-8000-000000000001' }`. Fire the interval callback (`ms === 5000`). The second `takeLead` sees the same client id. Resolve `true`. No third emit. Debug was not called again.
@@ -386,25 +383,25 @@ Untouched: `domain/sdk/task-processor.ts`, `domain/sdk/events.ts`, `domain/sdk/i
    - **(e) Hidden leader.** Activity starts foreground. Become leader. Set foreground false. Fire the interval. `takeLead` call count stays put. `state` stays `'leader'`. Set foreground true (and invoke the activity subscriber the runtime registered). Exactly one new `takeLead`. Resolve `false`. `state` is `'follower'`.
    - **(f) Mount while hidden still attempts.** Activity starts hidden. `start()`. `takeLead` was called once (mount is not focus-gated). Resolve `true`. `state` is `'leader'`. Fire the interval. No second call.
    - **(g) Retries, then warn, state unchanged.** Become leader. Next four `takeLead` calls reject `error = new Error('db down')`. After the first rejection the timeout list contains `1000`. Fire it. After the second, `2000`. Fire it. After the third, `4000`. Fire it. The fourth rejection warns once: `'Error. Take lead request failed. Will retry in 5 seconds.'` and `{ cause: error }` (`toBe` the same error). `state` is still `'leader'`. No emit whose `state` is `'error'`. The next interval tick calls `takeLead` a fifth time (a new cycle).
-   - **(h) Retry waits out a hidden tab.** First failure, fire the `1000` delay, then set foreground false before the next `takeLead`. While the wait is parked, fire the `5000` interval with foreground still false: the call count must not move (plan-attack F1). No second call until the subscriber runs with foreground true. That second call happens without an extra interval tick.
+   - **(h) Abandon while inactive, fresh bid on activation.** First failure, fire the `1000` delay, then set the host inactive before the continuation runs: no second `takeLead` (the bid is abandoned). Fire the `5000` interval while still inactive: the call count does not move. Set the host active and run the subscriber: exactly one new `takeLead`, without an extra interval tick. (Rewritten 2026-10-13d from the original park semantics; the call counts are unchanged.)
    - **(i) Abort finishes stop.** `takeLead` rejects when its signal aborts (`addEventListener('abort', ...)`). `start()`, do not resolve. `await stop()`. `state` is `'stopped'`. The signal's `aborted` is true. `stop()` arms a `5000` timer and its `cancel` has been called (the abort settled the checkpoint, so the timer must not be left running). A second `await stop()` resolves and does not emit again. Emit history contains `'follower'` then `'stopped'` only.
    - **(j) Hung attempt, late true.** `takeLead` returns a promise that ignores abort. `await` a `stop()` that the test completes by firing the `5000` timeout. `state` is `'stopped'`. Then resolve the hung call with `true`. `state` is still `'stopped'`. No emit after the `'stopped'` emit.
    - **(k) stop then start, same turn.** `takeLead` returns a promise that ignores abort (same as j). `start()`, then call `stop()` and `start()` again with no `await` between them. The second `takeLead` has already been invoked with `'00000000-0000-4000-8000-000000000001'` again (the old `inFlight` flag must not swallow this `start()`, and the client id persists across `stop()` / `start()` — `randomUUID` was called exactly once; plan-attack F3). Resolve the first promise `true`. `state` is not `'leader'` from that resolution. Resolve the second `true`. `state` is `'leader'`. Then `await` the first `stop()` after firing its `5000` timer if it is still pending, so the test process does not keep a timer.
    - **(l) Logged-out tick.** Become leader. Flip `getSession` to logged out. Fire the interval. `takeLead` is not called again. `state` is `'stopped'`.
    - **(m) In-flight guard.** `takeLead` pending. Invoke the activity subscriber (foreground stays true) and fire the interval. Call count stays 1 until the first resolves.
-   - **(n) Production repository path.** Do not pass `seams.takeLead`. Still pass the recording clock and `randomUUID`. `db.rpc` records `(fn, args)` and returns a thenable `{ data: true, error: null }` with `abortSignal()` returning itself (`Object.assign` onto `Promise.resolve(...)` is enough). `start()`. `rpc` was called with `'take_lead'` and `{ p_user_id: 'user-1', p_client_id: '00000000-0000-4000-8000-000000000001' }`. `await stop()`.
-   - **(o) Headless default activity.** No `seams.activity`. Pass `takeLead` and the recording clock. If `globalThis.document` is defined, return without failing (this pin's bun has no DOM). Otherwise `start()` calls `takeLead` once, which is the proof the missing document counts as foreground. `await stop()`.
+   - **(n) Production repository path.** Do not pass the `takeLead` seam. Still pass the recording clock and `randomUUID`. `db.rpc` records `(fn, args)` and returns a thenable `{ data: true, error: null }` with `abortSignal()` returning itself (`Object.assign` onto `Promise.resolve(...)` is enough). `start()`. `rpc` was called with `'take_lead'` and `{ p_user_id: 'user-1', p_client_id: '00000000-0000-4000-8000-000000000001' }`. `await stop()`.
+   - **(o) Constant-true activity.** Pass a constant-true `activity` monitor (the shape a never-suspended host supplies), `takeLead`, and the recording clock. `start()` calls `takeLead` once; after resolving it, an interval tick calls it a second time — proof that interval ticks poll unconditionally under a constant-true monitor. `await stop()`. (Rewritten 2026-10-13: the SDK no longer reads `document`, so the original "missing document counts as foreground" premise no longer exists.)
    - **(p) `AgicashSdk` wiring.** Copy `createMemoryStore` (`sdk.test.ts:8–19`) and `createConfig` (`:21–31`, `nullLogger`). `const sdk = AgicashSdk.create(createConfig())`. `sdk.taskProcessor` is `sdk.taskProcessor` (stable). `sdk.taskProcessor.state` is `'stopped'` without a throw. `start()` throws `NoSessionError`. `featureFlags` access throws `NotImplementedError`. `await sdk.dispose()` resolves. `start()` then throws `DisposedError`. `await sdk.taskProcessor.stop()` resolves. A second `AgicashSdk.create` after dispose succeeds; dispose it in `finally`. This test does not resolve a real `take_lead` (no session, so the repository is not called).
    - **(q) Idle online flip renews while hidden (plan-attack F2).** Become leader. Set foreground false. Run the subscriber with the online flag flipped to false (no new call). Run it again with the flag back to true: exactly one new `takeLead`, without an interval tick. Resolve `true`. `state` stays `'leader'`, no new emit, no new debug log.
 
-4. **Web flip** (pinned seams). `useRunTaskProcessor()` is unconditional inside `Wallet`, which still returns `null` from the parent when there is no auth user (`_protected.tsx:157–160`). Do not wrap `start()` in `try/catch`.
+4. **Web flip** (pinned seams). `useTaskProcessor()` is unconditional inside `Wallet`, which still returns `null` from the parent when there is no auth user (`_protected.tsx:157–160`). Do not wrap `start()` in `try/catch`.
 5. **Canary greps.**
 
 Gates are the Verification table. `bun run fix:all` is repo-wide `biome check --write`; revert any path outside the File map. The delivered diff equals the File map.
 
 **Task 2 (local, orchestrator):** merge, re-run the gates, and run the maintainer two-tab check below.
 
-**Task 3 (marketplace): adversarial review.** Check: `task-processor.ts`, `events.ts`, `index.ts`, `temporary.ts`, `auth-service.ts`, `use-track-wallet-changes.ts`, `lib/supabase/**`, `database.client.ts` byte-identical; `taskProcessor` is a field assigned from `createTaskProcessor`, `featureFlags` still throws; `dispose` awaits `stop()` before `this.disposed = true`; `onSessionEnded` calls `stop()` before `sessionToken.reset()`; no `console` and no React import in the runtime; no release RPC and no lock-row write; hidden tick does not call `take_lead` and does not leave `'leader'` (tests e, f); a hidden or offline tick does not release a parked retry (h); an idle online flip renews while hidden (q); `clientId` persists across `stop()` / `start()` (k); late `true` after `stop` does not become leader (j, k); retry warn string and 1s/2s/4s delays (g); `take_lead` args (n); web mounts `TaskProcessor` only for `'leader'` and still calls `useTrackWalletChanges` plus `useSupabaseRealtimeActivityTracking`; `useTakeTaskProcessingLead` is gone; this slice does not emit `connection.changed`. Confirmed findings go back through the orchestrator. A finding that the change-feed should have moved is an overturn of decision 2: it needs a new plan, not an improvised bridge in the implementation diff.
+**Task 3 (marketplace): adversarial review.** Check: `task-processor.ts`, `events.ts`, `index.ts`, `temporary.ts`, `auth-service.ts`, `use-track-wallet-changes.ts`, `lib/supabase/**`, `database.client.ts` byte-identical; `taskProcessor` is a field assigned from `createTaskProcessor`, `featureFlags` still throws; `dispose` sets `this.disposed = true` and then awaits `stop()` (flag-first per maintainer review 2026-10-13); `onSessionEnded` calls `stop()` before `sessionToken.reset()`; no `console` and no React import in the runtime; no release RPC and no lock-row write; an inactive tick does not call `take_lead` and does not leave `'leader'` (tests e, f); a retry abandoned while inactive is not re-sent by an inactive tick and a fresh bid follows activation (h); `clientId` persists across `stop()` / `start()` (k); late `true` after `stop` does not become leader (j, k); retry warn string and 1s/2s/4s delays (g); `take_lead` args (n); web mounts `TaskProcessor` only for `'leader'` and still calls `useTrackWalletChanges` plus `useSupabaseRealtimeActivityTracking`; `useTakeTaskProcessingLead` is gone; this slice does not emit `connection.changed`. Confirmed findings go back through the orchestrator. A finding that the change-feed should have moved is an overturn of decision 2: it needs a new plan, not an improvised bridge in the implementation diff.
 
 ## Verification summary
 
@@ -413,8 +410,8 @@ Gates are the Verification table. `bun run fix:all` is repo-wide `biome check --
 | Install | `bun install --frozen-lockfile` | exit 0, lockfile unchanged |
 | Lint/format + write | `bun run fix:all` | exit 0; only the File-map paths modified |
 | Types (all pkgs) | `bun run typecheck` | exit 0 |
-| SDK unit tests | `cd packages/wallet-sdk && bun run test` | green (292 `it`/`test` calls at `2105726` + the lettered additions a–s; (r) and (s) were added by the adversarial-review round) |
-| Web unit tests | `cd apps/web-wallet && bun run test` | green (40 at the pin; no new web test) |
+| SDK unit tests | `cd packages/wallet-sdk && bun run test` | green (292 `it`/`test` calls at `2105726` + the lettered additions a–p after the 2026-10-13b single-flag collapse removed the two split-flag cases; the lifetime-online-flag regression lives with the web adapter) |
+| Web unit tests | `cd apps/web-wallet && bun run test` | green (40 at the pin + the two browser-activity adapter tests) |
 | Canary | greps in Task 1 | as written |
 | Live | maintainer, two browsers | below |
 
@@ -430,6 +427,8 @@ Gates are the Verification table. `bun run fix:all` is repo-wide `biome check --
 Orchestrator unit gates do not need a funded wallet. If the maintainer has no second profile, say so and skip; do not block the slice on it.
 
 ## Parity accounting
+
+**Deviations (maintainer 2026-10-13b, single-flag collapse):** two master behaviors were dropped deliberately. A hidden tab no longer mounts into leadership (master's initial fetch was not focus-gated); it attempts on its first activation instead. A hidden tab no longer renews on an offline→online flip (master's `Query.onOnline` refetches regardless of focus); the lease lapses to a live client within ~11s. Both follow the reliability model: backgrounded ≈ may-be-frozen ≈ offline → yield. Everything below describes the unchanged remainder.
 
 The flipped lead poll adds **zero** network requests versus master on a visible tab. `take_lead` is one RPC per attempt. Master: one immediate fetch on mount, then one per 5s while the document is visible, plus one on the transition to visible and one on the `online` event, with a single in-flight call. The SDK loop does the same. The RPC name, argument names, and 6s lease are unchanged, so a tab still on the old bundle and a tab on the new bundle share one lock. Neither tab runs two loops.
 
@@ -460,7 +459,7 @@ Hidden tab: zero `take_lead` calls per skipped tick, on both sides. Processors s
 
 ## Out of scope
 
-- **Sub-slice 2 — port processors one flow at a time.** The runner has no flow calls. For each flow, in one commit: move that processor's iteration into the SDK, `track()` its promise so `stop()` already waits for it, and delete that one `useProcess*` call from `TaskProcessor` (`task-processing.ts:76–81`). Do not leave the hook and the SDK iteration both live. When the last hook is gone, delete `TaskProcessor` and the `state === 'leader'` mount. `'error'` transitions, if a flow is wedged past the checkpoint timeout, are added here; the web `throw` is already in `wallet.tsx`. Do not put flow code behind a new public register method.
+- **Sub-slice 2 — port processors one flow at a time.** The runner has no flow calls. For each flow, in one commit: move that processor's iteration into the SDK, `track()` its promise so `stop()` already waits for it, and delete that one `useProcess*` call from `TaskProcessor` (`task-processing.ts:76–81`). Do not leave the hook and the SDK iteration both live. When the last hook is gone, delete `TaskProcessor` and the `state === 'leader'` mount. `'error'` transitions, if a flow is wedged past the checkpoint timeout, are added here; the web `throw` is already in `wallet.tsx`. When the leader gate dies, fold that throw into `useTaskProcessor` itself (maintainer, 2026-10-13): the throw becomes the snapshot's only consumer, so the hook collapses to `useTaskProcessor(): void` — run the lifecycle, throw on `'error'` — instead of returning a state nobody reads. Do not put flow code behind a new public register method.
 - **Sub-slice 3 — web drops the realtime layer.** Open the channel when a session starts (`events.ts:82–85`), not from `taskProcessor.start()` and not from inside the runtime class. `dispose` / `onSessionEnded` already stop the processor first; remove the channel after that prefix, without changing `stop()`'s state machine. Give `connection.changed` a replay or subscribe before connect, or the 13 invalidates at `use-track-wallet-changes.ts:135–147` will miss the boot-time `connected`. Decrypt in the SDK and emit the existing map. Broadcast event → contract event, from today's handlers (do not rediscover these):
 
   | Broadcast event | Contract event | Handler |
@@ -494,4 +493,4 @@ Hidden tab: zero `take_lead` calls per skipped tick, on both sides. Processors s
 
 ## Open questions
 
-None. Decisions 1–8 cover the slice, with the plan-attack corrections F1–F7 folded in (hidden/offline ticks never release a parked retry; an idle offline→online flip renews even while hidden; one `clientId` per processor instance; the change-feed deferral stands with its log rationale corrected). Decision 2 is a deliberate divergence from the spec's grouping of the change-feed into sub-slice 1; the remaining reasons and the canary greps are the review surface. The 5s checkpoint cap is a constant sub-slice 2 may raise without changing `stop()`'s race.
+None. Decisions 1–8 cover the slice, with the plan-attack corrections F1–F7 folded in (no `take_lead` while inactive, including retries; an idle offline→online flip renews even while hidden; one `clientId` per processor instance; the change-feed deferral stands with its log rationale corrected). Decision 2 is a deliberate divergence from the spec's grouping of the change-feed into sub-slice 1; the remaining reasons and the canary greps are the review surface. The 5s checkpoint cap is a constant sub-slice 2 may raise without changing `stop()`'s race.

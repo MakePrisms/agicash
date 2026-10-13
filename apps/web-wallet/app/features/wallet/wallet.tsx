@@ -6,11 +6,7 @@ import { agicashRealtimeClient } from '../agicash-db/database.client';
 import { useTheme } from '../theme';
 import { useHandleSessionEvents } from '../user/auth';
 import { useUser } from '../user/user-hooks';
-import {
-  TaskProcessor,
-  useRunTaskProcessor,
-  useTaskProcessorSnapshot,
-} from './task-processing';
+import { TaskProcessor, useTaskProcessor } from './task-processing';
 import { useTrackAndUpdateSparkAccountBalances } from './use-track-spark-account-balances';
 import { useTrackWalletChanges } from './use-track-wallet-changes';
 
@@ -58,8 +54,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   useSupabaseRealtimeActivityTracking(agicashRealtimeClient);
   useTrackAndUpdateSparkAccountBalances();
 
-  useRunTaskProcessor();
-  const taskProcessor = useTaskProcessorSnapshot();
+  const taskProcessor = useTaskProcessor();
   if (taskProcessor.state === 'error') {
     throw taskProcessor.error ?? new Error('Task processor entered error');
   }

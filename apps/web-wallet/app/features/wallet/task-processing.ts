@@ -51,7 +51,15 @@ function getTaskProcessorSnapshot(): {
   return cached;
 }
 
-export function useRunTaskProcessor(): void {
+/**
+ * Runs the SDK task processor for this tab and returns its state.
+ * The effect owns the loop, so exactly one mounted component may call this
+ * (the Wallet layout): the cleanup stops task processing for the whole tab.
+ */
+export function useTaskProcessor(): {
+  state: TaskProcessorState;
+  error?: SdkError;
+} {
   const userId = useUser((user) => user.id);
   // biome-ignore lint/correctness/useExhaustiveDependencies: userId restarts the loop; it is not read inside
   useEffect(() => {
@@ -60,12 +68,6 @@ export function useRunTaskProcessor(): void {
       void sdk.taskProcessor.stop();
     };
   }, [userId]);
-}
-
-export function useTaskProcessorSnapshot(): {
-  state: TaskProcessorState;
-  error?: SdkError;
-} {
   return useSyncExternalStore(
     subscribeTaskProcessor,
     getTaskProcessorSnapshot,

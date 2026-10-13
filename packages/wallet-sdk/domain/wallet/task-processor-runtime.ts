@@ -1,6 +1,12 @@
 import type { AgicashDb } from '../../db/database';
 import { DisposedError, NoSessionError, type SdkError } from '../../lib/error';
-import type { AuthSession, Logger } from '../sdk';
+import {
+  type RunScope,
+  type RunScopes,
+  type ScopeClock,
+  createRunScopes,
+} from '../../lib/run-scope';
+import type { ActivityMonitor, AuthSession, Logger } from '../sdk';
 import type {
   TaskProcessorApi,
   TaskProcessorState,
@@ -11,181 +17,98 @@ const LEAD_POLL_INTERVAL_MS = 5_000;
 const STOP_CHECKPOINT_TIMEOUT_MS = 5_000;
 const LEAD_RETRY_LIMIT = 3;
 
-type LeadBoolean = boolean;
-
-type AttemptReason = 'mount' | 'interval' | 'resume' | 'reconnect';
-
-export type DocumentActivity = {
-  isForeground(): boolean;
-  isOnline(): boolean;
-  /** Fires on visibility or online/offline changes. No-op unsubscribe when there is no window. */
-  subscribe(onChange: () => void): () => void;
-};
-
-export type TaskProcessorSeams = {
-  takeLead?: (
-    userId: string,
-    clientId: string,
-    options?: { abortSignal?: AbortSignal },
-  ) => Promise<LeadBoolean>;
-  activity?: DocumentActivity;
-  randomUUID?: () => string;
-  setInterval?: (callback: () => void, ms: number) => () => void;
-  setTimeout?: (callback: () => void, ms: number) => () => void;
-};
+type TakeLead = (
+  userId: string,
+  clientId: string,
+  options?: { abortSignal?: AbortSignal },
+) => Promise<boolean>;
 
 export type TaskProcessorDeps = {
   db: AgicashDb;
   getSession: () => AuthSession;
+  activity: ActivityMonitor;
   emit: (payload: { state: TaskProcessorState; error?: SdkError }) => void;
   logger: Logger;
-  seams?: TaskProcessorSeams;
+  /** Test seam; defaults to `TaskProcessingLockRepository.takeLead` on `db`. */
+  takeLead?: TakeLead;
+  /** Test seam; defaults to `globalThis.crypto.randomUUID`. */
+  randomUUID?: () => string;
+  /** Test seam; defaults to the global `setInterval` / `setTimeout`. */
+  clock?: ScopeClock;
 };
 
-type HostDocument = {
-  visibilityState?: string;
+const systemClock: ScopeClock = {
+  setInterval(callback, ms) {
+    const id = setInterval(callback, ms);
+    return () => clearInterval(id);
+  },
+  setTimeout(callback, ms) {
+    const id = setTimeout(callback, ms);
+    return () => clearTimeout(id);
+  },
 };
 
-type HostWindow = {
-  addEventListener(type: string, listener: () => void, capture: boolean): void;
-  removeEventListener(
-    type: string,
-    listener: () => void,
-    capture: boolean,
-  ): void;
-};
-
-function createDefaultDocumentActivity(): DocumentActivity {
-  let online = true;
-  let trackingOnline = false;
-  return {
-    isForeground(): boolean {
-      const hostDocument = (globalThis as { document?: HostDocument }).document;
-      if (!hostDocument || hostDocument.visibilityState === undefined) {
-        return true;
-      }
-      return hostDocument.visibilityState !== 'hidden';
-    },
-    isOnline(): boolean {
-      return online;
-    },
-    subscribe(onChange: () => void): () => void {
-      const hostWindow = (globalThis as { window?: HostWindow }).window;
-      if (typeof hostWindow?.addEventListener !== 'function') {
-        return () => undefined;
-      }
-      // The flag listeners live for the activity's whole lifetime: an
-      // offline/online flip between stop() and the next start() must still
-      // land on the flag, or a restarted loop never attempts take_lead again.
-      if (!trackingOnline) {
-        trackingOnline = true;
-        hostWindow.addEventListener(
-          'offline',
-          () => {
-            online = false;
-          },
-          false,
-        );
-        hostWindow.addEventListener(
-          'online',
-          () => {
-            online = true;
-          },
-          false,
-        );
-      }
-      const forward = () => {
-        onChange();
-      };
-      hostWindow.addEventListener('visibilitychange', forward, false);
-      hostWindow.addEventListener('offline', forward, false);
-      hostWindow.addEventListener('online', forward, false);
-      return () => {
-        hostWindow.removeEventListener('visibilitychange', forward, false);
-        hostWindow.removeEventListener('offline', forward, false);
-        hostWindow.removeEventListener('online', forward, false);
-      };
-    },
-  };
-}
-
-function createRepositoryTakeLead(
-  db: AgicashDb,
-): NonNullable<TaskProcessorSeams['takeLead']> {
+function createRepositoryTakeLead(db: AgicashDb): TakeLead {
   const repository = new TaskProcessingLockRepository(db);
   return (userId, clientId, options) =>
     repository.takeLead(userId, clientId, options);
 }
 
-function defaultSchedule(
-  schedule: (callback: () => void, ms: number) => unknown,
-  clear: (id: unknown) => void,
-): (callback: () => void, ms: number) => () => void {
-  return (callback, ms) => {
-    const id = schedule(callback, ms);
-    return () => {
-      clear(id);
-    };
-  };
-}
-
+/**
+ * Elects this client as the user's task-processing leader and keeps the lease.
+ *
+ * Leadership lives in one row per user (`wallet.task_processing_locks`), and
+ * the `take_lead` RPC is the mutex: it renews the lease of the client that
+ * holds it, gives an expired lease to the caller, and refuses otherwise. So at
+ * most one client id holds an unexpired lease (6 s) at any time, whatever the
+ * clients do. This class only decides WHEN to call `take_lead`: right after
+ * `start()`, every 5 s, and on every activity change — and only while the
+ * host reports `isActive()`. An inactive client stops renewing, its lease
+ * expires, and an active client takes over on its next call.
+ *
+ * `state` holds the latest verdict ('leader' or 'follower'), and each change
+ * is emitted as `task-processor.state-changed`. Each start-to-stop generation
+ * runs in its own `RunScope`, so a late `take_lead` response from a stopped
+ * generation can never change `state`. The client id is minted once per
+ * instance and survives `stop()`/`start()`.
+ */
 class TaskProcessorRuntime {
   private current: TaskProcessorState = 'stopped';
   private failure: SdkError | undefined;
-  private generation = 0;
   private clientId: string | undefined;
   private lastLead: boolean | undefined;
   private inFlight = false;
-  private wasOnline = true;
-  private intervalCancel: (() => void) | undefined;
-  private activityUnsubscribe: (() => void) | undefined;
-  private attemptAbort: AbortController | undefined;
-  private cancelDelay: (() => void) | undefined;
-  private runnableWaiter: (() => void) | undefined;
-  private readonly checkpoints = new Set<Promise<void>>();
-  private stopPromise: Promise<void> | undefined;
-  private stopToken: object | undefined;
 
-  private readonly activity: DocumentActivity;
-  private readonly takeLead: NonNullable<TaskProcessorSeams['takeLead']>;
+  private readonly scopes: RunScopes;
+  private readonly activity: ActivityMonitor;
+  private readonly takeLead: TakeLead;
   private readonly randomUUID: () => string;
-  private readonly scheduleInterval: (
-    callback: () => void,
-    ms: number,
-  ) => () => void;
-  private readonly scheduleTimeout: (
-    callback: () => void,
-    ms: number,
-  ) => () => void;
 
   constructor(private readonly deps: TaskProcessorDeps) {
-    const seams = deps.seams;
-    this.activity = seams?.activity ?? createDefaultDocumentActivity();
-    this.takeLead = seams?.takeLead ?? createRepositoryTakeLead(deps.db);
-    this.randomUUID =
-      seams?.randomUUID ?? (() => globalThis.crypto.randomUUID());
-    this.scheduleInterval =
-      seams?.setInterval ??
-      defaultSchedule(
-        (callback, ms) => globalThis.setInterval(callback, ms),
-        (id) => {
-          globalThis.clearInterval(id as ReturnType<typeof setInterval>);
-        },
-      );
-    this.scheduleTimeout =
-      seams?.setTimeout ??
-      defaultSchedule(
-        (callback, ms) => globalThis.setTimeout(callback, ms),
-        (id) => {
-          globalThis.clearTimeout(id as ReturnType<typeof setTimeout>);
-        },
-      );
+    this.activity = deps.activity;
+    this.takeLead = deps.takeLead ?? createRepositoryTakeLead(deps.db);
+    this.randomUUID = deps.randomUUID ?? (() => globalThis.crypto.randomUUID());
+    this.scopes = createRunScopes(deps.clock ?? systemClock);
   }
 
   get state(): TaskProcessorState {
     return this.current;
   }
 
+  /**
+   * Starts the lead loop: subscribes to activity changes, arms the 5 s
+   * interval, and bids at once. Synchronous: `state` becomes 'follower'
+   * immediately (and is emitted), and the first verdict arrives later.
+   *
+   * Idempotent while the loop runs ('follower' or 'leader'). After `stop()`
+   * it starts a new generation with the same client id, so the new loop
+   * renews the lease the old one held instead of waiting for it to expire.
+   *
+   * @throws {NoSessionError} when no user is logged in.
+   * @throws {DisposedError} after the SDK is disposed.
+   * @throws {SdkError} the error that put the processor in 'error', while it
+   * stays there.
+   */
   start(): void {
     const session = this.deps.getSession();
     if (!session.isLoggedIn) {
@@ -197,79 +120,44 @@ class TaskProcessorRuntime {
     if (this.current === 'follower' || this.current === 'leader') {
       return;
     }
-    this.generation += 1;
-    const generation = this.generation;
+    const scope = this.scopes.renew();
     if (this.clientId === undefined) {
       this.clientId = this.randomUUID();
     }
     this.lastLead = undefined;
-    this.wasOnline = this.activity.isOnline();
     this.transition('follower');
-    if (generation !== this.generation) {
+    if (!scope.alive) {
       return;
     }
-    this.activityUnsubscribe = this.activity.subscribe(() => {
-      this.onActivity(generation);
-    });
-    this.intervalCancel = this.scheduleInterval(() => {
-      this.tick(generation);
-    }, LEAD_POLL_INTERVAL_MS);
-    void this.attempt(generation, 'mount');
+    const bid = () => {
+      void this.bidForLead(scope);
+    };
+    const unsubscribe = this.activity.subscribe(bid);
+    scope.onCleanup(unsubscribe);
+    scope.every(LEAD_POLL_INTERVAL_MS, bid);
+    bid();
   }
 
+  /**
+   * Stops the lead loop. Everything that matters happens synchronously,
+   * before the first await: the scope is cancelled (the interval, the
+   * activity subscription, and pending retry delays go away, and the
+   * in-flight `take_lead` is aborted), `state` becomes 'stopped', and no new
+   * bid can start. The lock row is not written; the lease simply expires
+   * (6 s), and another client takes over.
+   *
+   * The returned promise resolves when the tracked in-flight work settles,
+   * or after 5 s, whichever is first, and it never rejects. Await it when
+   * the instance must be quiet before the next step (a controlled
+   * shutdown); a caller that only needs the loop gone (sign-out) need not.
+   * Safe to call any number of times, from any state.
+   */
   stop(): Promise<void> {
-    if (
-      this.current === 'stopped' &&
-      this.intervalCancel === undefined &&
-      !this.inFlight
-    ) {
-      return this.stopPromise ?? Promise.resolve();
-    }
-    this.generation += 1;
+    this.scopes.cancel();
     this.inFlight = false;
-    this.intervalCancel?.();
-    this.intervalCancel = undefined;
-    this.activityUnsubscribe?.();
-    this.activityUnsubscribe = undefined;
-    this.attemptAbort?.abort();
-    this.attemptAbort = undefined;
-    this.cancelDelay?.();
-    this.wakeRunnableWaiter();
     this.transition('stopped');
     this.lastLead = undefined;
-
-    const token = {};
-    this.stopToken = token;
-    const snapshot = [...this.checkpoints].map((work) =>
-      work.then(
-        () => undefined,
-        () => undefined,
-      ),
-    );
-    let finished = false;
-    const promise = new Promise<void>((resolve) => {
-      const finish = () => {
-        if (finished) {
-          return;
-        }
-        finished = true;
-        if (this.stopToken === token) {
-          this.stopPromise = undefined;
-          this.stopToken = undefined;
-        }
-        resolve();
-      };
-      const cancelTimer = this.scheduleTimeout(
-        finish,
-        STOP_CHECKPOINT_TIMEOUT_MS,
-      );
-      void Promise.all(snapshot).then(() => {
-        cancelTimer();
-        finish();
-      });
-    });
-    this.stopPromise = promise;
-    return promise;
+    return this.scopes.join(STOP_CHECKPOINT_TIMEOUT_MS);
   }
 
   private transition(next: TaskProcessorState, error?: SdkError): void {
@@ -285,70 +173,20 @@ class TaskProcessorRuntime {
     this.deps.emit({ state: next });
   }
 
-  private onActivity(generation: number): void {
-    if (generation !== this.generation || this.current === 'stopped') {
-      return;
-    }
-    const online = this.activity.isOnline();
-    const reconnect = !this.wasOnline && online;
-    this.wasOnline = online;
-    this.wakeIfRunnable();
-    this.kick(generation, reconnect ? 'reconnect' : 'resume');
-  }
-
-  private tick(generation: number): void {
-    if (generation !== this.generation || this.current === 'stopped') {
-      return;
-    }
-    this.wakeIfRunnable();
-    this.kick(generation, 'interval');
-  }
-
-  private kick(
-    generation: number,
-    reason: Exclude<AttemptReason, 'mount'>,
-  ): void {
-    if (reason === 'reconnect') {
-      if (this.activity.isOnline() && !this.inFlight) {
-        void this.attempt(generation, reason);
-      }
-      return;
-    }
-    if (this.isRunnable() && !this.inFlight) {
-      void this.attempt(generation, reason);
-    }
-  }
-
-  private isRunnable(): boolean {
-    return this.activity.isForeground() && this.activity.isOnline();
-  }
-
-  private isLoopCurrent(generation: number): boolean {
-    return generation === this.generation && this.current !== 'stopped';
-  }
-
-  private wakeIfRunnable(): void {
-    if (this.isRunnable()) {
-      this.wakeRunnableWaiter();
-    }
-  }
-
-  private wakeRunnableWaiter(): void {
-    const waiter = this.runnableWaiter;
-    this.runnableWaiter = undefined;
-    waiter?.();
-  }
-
-  private async attempt(
-    generation: number,
-    reason: AttemptReason,
-  ): Promise<void> {
-    if (generation !== this.generation || this.current === 'stopped') {
+  /**
+   * One leadership bid: a single logical take_lead acquisition-or-renewal,
+   * including transport retries (1s/2s/4s, then one warn until the next tick).
+   * Every trigger (start, the 5s interval, an activity change) calls this; it
+   * is a no-op when the scope is dead, a bid is already in flight, or the
+   * host is inactive. A bid that finds the host inactive after a backoff is
+   * abandoned; the next activation starts a fresh one. Ends by applying a
+   * verdict, by being abandoned, or by evaporating when the scope dies.
+   */
+  private async bidForLead(scope: RunScope): Promise<void> {
+    if (!scope.alive || this.inFlight || !this.activity.isActive()) {
       return;
     }
     this.inFlight = true;
-    const controller = new AbortController();
-    this.attemptAbort = controller;
     try {
       let session: AuthSession;
       try {
@@ -364,35 +202,24 @@ class TaskProcessorRuntime {
         void this.stop();
         return;
       }
-      if (reason === 'mount' && !this.activity.isOnline()) {
-        return;
-      }
-      if (
-        (reason === 'interval' || reason === 'resume') &&
-        !this.isRunnable()
-      ) {
-        return;
-      }
       const clientId = this.clientId;
       if (clientId === undefined) {
         return;
       }
       const userId = session.user.id;
       let failureCount = 0;
-      while (this.isLoopCurrent(generation) && !controller.signal.aborted) {
+      while (scope.alive) {
         try {
-          const lead = await this.track(
-            this.takeLead(userId, clientId, {
-              abortSignal: controller.signal,
-            }),
+          const lead = await scope.track(
+            this.takeLead(userId, clientId, { abortSignal: scope.signal }),
           );
-          if (generation !== this.generation || controller.signal.aborted) {
+          if (!scope.alive) {
             return;
           }
           this.applyLead(lead, clientId);
           return;
         } catch (error) {
-          if (controller.signal.aborted || generation !== this.generation) {
+          if (!scope.alive) {
             return;
           }
           if (failureCount >= LEAD_RETRY_LIMIT) {
@@ -402,23 +229,16 @@ class TaskProcessorRuntime {
             );
             return;
           }
-          await this.delay(Math.min(1000 * 2 ** failureCount, 30_000));
-          if (!this.isLoopCurrent(generation)) {
+          await scope.delay(Math.min(1000 * 2 ** failureCount, 30_000));
+          if (!scope.alive || !this.activity.isActive()) {
             return;
           }
           failureCount += 1;
-          const stillRunning = await this.parkUntilRunnable(generation);
-          if (!stillRunning) {
-            return;
-          }
         }
       }
     } finally {
-      if (this.generation === generation) {
+      if (scope.alive) {
         this.inFlight = false;
-        if (this.attemptAbort === controller) {
-          this.attemptAbort = undefined;
-        }
       }
     }
   }
@@ -435,65 +255,12 @@ class TaskProcessorRuntime {
     }
     this.transition(lead ? 'leader' : 'follower');
   }
-
-  private track<T>(work: Promise<T>): Promise<T> {
-    const settled = work.then(
-      () => undefined,
-      () => undefined,
-    );
-    this.checkpoints.add(settled);
-    void settled.then(() => {
-      this.checkpoints.delete(settled);
-    });
-    return work;
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        this.cancelDelay = undefined;
-        resolve();
-      };
-      const cancelTimer = this.scheduleTimeout(finish, ms);
-      this.cancelDelay = () => {
-        cancelTimer();
-        finish();
-      };
-    });
-  }
-
-  private waitUntilRunnable(generation: number): Promise<void> {
-    if (
-      generation !== this.generation ||
-      this.current === 'stopped' ||
-      this.isRunnable()
-    ) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      this.runnableWaiter = () => {
-        this.runnableWaiter = undefined;
-        resolve();
-      };
-    });
-  }
-
-  private async parkUntilRunnable(generation: number): Promise<boolean> {
-    while (generation === this.generation && this.current !== 'stopped') {
-      if (this.isRunnable()) {
-        return true;
-      }
-      await this.waitUntilRunnable(generation);
-    }
-    return false;
-  }
 }
 
+/**
+ * Implements `TaskProcessorApi` with `TaskProcessorRuntime`. The returned
+ * facade exposes only the contract members (`start`, `stop`, `state`).
+ */
 export function createTaskProcessor(deps: TaskProcessorDeps): TaskProcessorApi {
   const runtime = new TaskProcessorRuntime(deps);
   return {
