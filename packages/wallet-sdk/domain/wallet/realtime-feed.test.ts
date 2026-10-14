@@ -146,6 +146,7 @@ function createTransport(): RealtimeTransport & {
   const handles: Handle[] = [];
   const releasers: Array<() => void> = [];
   const pendingByTopic = new Map<string, number>();
+  const openByTopic = new Map<string, number>();
   const transport = {
     trace,
     handles,
@@ -157,7 +158,15 @@ function createTransport(): RealtimeTransport & {
     },
     join(topic: string, listener: Listener): Handle {
       trace.push({ op: 'join', topic });
-      const suppressed = (pendingByTopic.get(topic) ?? 0) > 0;
+      // realtime-js hands back the existing channel for a topic until it has
+      // left, and subscribe() on it reports nothing.
+      const suppressed =
+        (pendingByTopic.get(topic) ?? 0) > 0 ||
+        (openByTopic.get(topic) ?? 0) > 0;
+      if (!suppressed) {
+        openByTopic.set(topic, (openByTopic.get(topic) ?? 0) + 1);
+      }
+      let left = false;
       let notifying = false;
       const handle: Handle = {
         topic,
@@ -172,6 +181,13 @@ function createTransport(): RealtimeTransport & {
         },
         leave() {
           trace.push({ op: 'leave', topic });
+          if (!suppressed && !left) {
+            left = true;
+            openByTopic.set(
+              topic,
+              Math.max(0, (openByTopic.get(topic) ?? 1) - 1),
+            );
+          }
           if (!notifying) {
             notifying = true;
             try {
@@ -1155,5 +1171,27 @@ describe('createRealtimeFeed', () => {
     expect(
       connectionStates(switched).filter((state) => state === 'connected'),
     ).toEqual(['connected', 'connected']);
+  });
+
+  it('x. starts one join when two activity changes arrive while closed', async () => {
+    const h = createHarness();
+    await connect(h);
+    h.activity.set(false);
+    h.transport.current().fire(REALTIME_SUBSCRIBE_STATES.TIMED_OUT);
+    await flush();
+    const joins = h.transport.joinCount();
+
+    h.activity.set(true);
+    h.activity.set(true);
+    await flush();
+
+    expect(h.transport.joinCount()).toBe(joins + 1);
+    h.transport.current().fire(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+    await flush();
+    expect(connectionStates(h)).toEqual([
+      'connected',
+      'reconnecting',
+      'connected',
+    ]);
   });
 });

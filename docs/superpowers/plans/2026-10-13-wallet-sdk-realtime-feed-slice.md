@@ -729,6 +729,13 @@ rules:
   `scope.onCleanup(deps.activity.subscribe(() => onActivity(scope)))`.
   Finally it calls `void subscribe(scope)` with the counter at 0.
 - **`subscribe(scope)`:**
+  0. Internal `subscribing`, synchronously, before the first await. The web
+     activity adapter forwards every `visibilitychange` / `online` /
+     `offline` event (`browser-activity.client.ts:22-27`), so two "active"
+     notifications can arrive while the state is `closed`; without this,
+     each starts an attempt and the second join gets the first one's
+     channel back (integration fix, test x). Master sets `subscribing`
+     before its first await the same way (`supabase-realtime-manager.ts:553-555`).
   1. `startLeave()` (a no-op without a current join), then
      `await scope.track(pendingLeave)`. This also waits for a leave that
      `close()` started on the previous scope.
@@ -1117,7 +1124,7 @@ stays true because the class name is unchanged).
 | File | Change |
 |---|---|
 | `packages/wallet-sdk/domain/wallet/realtime-feed.ts` | new (S1) |
-| `packages/wallet-sdk/domain/wallet/realtime-feed.test.ts` | new (tests a–p, o2, v, w) |
+| `packages/wallet-sdk/domain/wallet/realtime-feed.test.ts` | new (tests a–p, o2, v, w, x) |
 | `packages/wallet-sdk/domain/sdk/events.ts` | replay-latest for `connection.changed` (S2) |
 | `packages/wallet-sdk/domain/sdk/events.test.ts` | tests q–s |
 
@@ -1267,6 +1274,12 @@ The following stay **untouched**:
   `SUBSCRIBED` emits `connected`. Repeat with user B while A's leave is
   pending: B's join also waits for it (one chain), and a late `fire` on A's
   old handle emits nothing.
+- **x. Two activity changes while closed (integration fix).** Subscribed,
+  `set(false)`, `TIMED_OUT` (internal `closed`), then `set(true)` twice in
+  the same turn: exactly one new `join`, and its `SUBSCRIBED` emits
+  `connected`. The fake also treats a join on a topic with an open,
+  not-yet-left handle as the shared channel (no status), as realtime-js
+  does.
 - **q.** (`events.test.ts`) After an emitted `connected`, a late `on()`
   receives it once, synchronously.
 - **r.** (`events.test.ts`) Replay is the **latest** value: after `connected`
@@ -1428,6 +1441,11 @@ older text and a correction disagree, the correction wins.
 - **F8 (minor) Users trigger citation.** `USER_UPDATED` comes from the
   users-broadcast migration. Decision 4 table.
 - **F9 (nit) Effect deps.** `[]`, because `useLatest` is `stableResult`. S7.
+
+**Integration fix (2026-10-14, after Task 1).** `subscribe()` enters
+`subscribing` before its first await, so a second activity notification
+while `closed` cannot start a second attempt on the same topic. S1
+`subscribe` step 0, test x.
 
 The review confirmed the rest without change: the event and mapper table
 against the trigger payloads, `TransactionsCache.get`, the replay and sweep

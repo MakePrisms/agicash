@@ -523,6 +523,9 @@ class RealtimeFeedRuntime {
   }
 
   private async subscribe(scope: RunScope): Promise<void> {
+    // Before the first await: onActivity starts an attempt only from 'closed',
+    // and the activity monitor can fire twice for one return to the tab.
+    this.transition('subscribing');
     this.startLeave();
     await scope.track(this.pendingLeave);
     if (!scope.alive) return;
@@ -570,7 +573,6 @@ class RealtimeFeedRuntime {
     });
     slot.handle = joined;
     this.current = joined;
-    this.transition('subscribing');
   }
 
   private fail(scope: RunScope, cause: unknown): void {
