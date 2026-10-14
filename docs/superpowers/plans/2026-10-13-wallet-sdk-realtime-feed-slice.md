@@ -131,9 +131,13 @@ There are no new dependencies.
   ```ts
   onSessionStarted: async (authUser) => {
     await userProvisioner.provision(authUser);
-    realtimeFeed.open();
+    const session = this.authService.getSession();
+    if (!session.isLoggedIn || session.user.id !== authUser.id) return;
+    realtimeFeed?.open();
   },
   ```
+
+  The exact diff is S3.
 
 - **Why open after provisioning:**
   - `auth.session-started` (the seed of user + accounts) is emitted before the
@@ -148,17 +152,29 @@ There are no new dependencies.
     `DisposedError` (`packages/wallet-sdk/domain/sdk/user-provisioner.ts:30-48`).
     So a re-notification with the same identity is cheap, and `open()`
     re-checks the live session itself.
+  - **Live-user check (plan-attack F3).** `provision` swallows those errors
+    and *returns* (`user-provisioner.ts:39-45`), so the code after it still
+    runs. `onSessionStarted` therefore opens the feed only while `authUser` is
+    still the live session's user. On an identity change
+    (`auth-service.ts:350-356`), a provision that started for user A can
+    resolve after user B is installed. Without the check, A's continuation
+    would open B's feed before B's own `provision` returns, and a terminal
+    failure of B's provision would then leave B's feed open.
 
 **How `open()` behaves**
 
-`open()` is idempotent and fenced:
+`open()` is idempotent and fenced (plan-attack F3):
 
-1. It reads `getSession()`.
-2. If the session is not logged in, or the feed is disposed, it does nothing.
-3. If the feed is already open for the same `user.id`, it does nothing. This
-   holds in any state, including `error`: a fingerprint-only change such as
-   email verification does not restart a dead feed.
-4. Otherwise it calls `close()` and then starts a fresh scope for the new user.
+1. If the feed is disposed, it does nothing. This check comes first and does
+   not read the session: `getSession()` stays logged in after
+   `AuthService.teardown()` (`auth-service.ts:97-99`, `:280-283`).
+2. It reads `getSession()`. If the session is not logged in, it does nothing.
+3. If the feed is already open for the same `user.id` (a live scope in any
+   state, including `error`), it does nothing. A fingerprint-only change such
+   as email verification does not restart a dead feed.
+4. Otherwise it calls `close()` and then starts a fresh scope for the new
+   user. The new scope's first join waits for the leave that `close()`
+   started (plan-attack F1, S1 `pendingLeave`).
 
 **When the feed closes**
 
@@ -171,6 +187,13 @@ There are no new dependencies.
     `:682-725`, heartbeat `_setAuthSafely` at `:395`).
   - Leaving first means no join is ever attempted with a logged-out token, and
     the next user's resubscribe never reuses the previous user's channel.
+  - `close()` does not await the leave, but it starts it synchronously:
+    `removeChannel` calls `unsubscribe()` before its first await, and
+    `unsubscribe()` sets the channel to `leaving` at once
+    (`RealtimeChannel.js:359-360`). realtime-js pushes a token only to
+    channels that are joined (`RealtimeClient.js:712-724`,
+    `RealtimeChannel.js:519-520`). The next `open()` waits for that leave to
+    finish before it joins (plan-attack F1).
   - `events.clear()` stays last, so a replayed `connection.changed` cannot
     outlive the session.
 - **Identity change.** `applySessionFromServer` calls `onSessionEnded` while
@@ -346,7 +369,7 @@ decoders are `(payload, ctx) => Promise<emission>`.
 | `SPARK_RECEIVE_QUOTE_UPDATED` | same | `spark-receive-quote.updated { quote }` |
 | `SPARK_SEND_QUOTE_CREATED` | `new SparkSendQuoteRepository(db, enc).toQuote(row)` (`domain/send/spark-send-quote-repository.ts:59-62`, `:312`) | `spark-send-quote.created { quote }` |
 | `SPARK_SEND_QUOTE_UPDATED` | same | `spark-send-quote.updated { quote }` |
-| `USER_UPDATED` | `ReadUserRepository.toUser(row)` (`domain/user/user-repository.ts:357`) | `user.updated { user }` |
+| `USER_UPDATED` | `ReadUserRepository.toUser(row)` (`domain/user/user-repository.ts:357`); trigger in `db/supabase/migrations/20260522185431_add_users_broadcast_trigger.sql:13-16`, not the initial migration (plan-attack F8) | `user.updated { user }` |
 
 Paths in the table are relative to `packages/wallet-sdk/`. The row types are
 the ones the mappers declare (`AgicashDb*`, `& { cashu_proofs }` for the two
@@ -400,16 +423,17 @@ The semantics that are kept are listed in this table.
 |---|---|---|
 | Retry delays | `[0,100,500,1000,3000,6000,10000,20000,30000]` ms (`:99-102`) | same constant |
 | Retry budget | 9, then status `error` (`:452-517`) | 9 consecutive failed retries since the last `SUBSCRIBED`, then `error` |
-| Per attempt | `removeChannel` old → rebuild → `await setAuth()` → `subscribe` (`:542-634`) | same: `leave()` old → `await transport.refreshAuth()` → `transport.join()` |
+| Per attempt | `await removeChannel` old → rebuild → `await setAuth()` → `subscribe` (`:523-533`, `:542-634`) | same order: the old join's leave must **finish** → `await transport.refreshAuth()` → `transport.join()`. realtime-js hands back the still-leaving channel for the same topic (`RealtimeClient.js:274-285`), and `subscribe()` on it does nothing (`RealtimeChannel.js:118-124`), so a join before the leave finishes never reports a status (plan-attack F1). |
 | `SUBSCRIBED` | status `subscribed`; every SUBSCRIBED calls `onConnected` | state `subscribed`; **every** entry emits `connected`; retry counter reset |
-| `CHANNEL_ERROR`/`TIMED_OUT` while offline/inactive | `closeChannel` → `closed` (`:383-409`) | `leave()` → state `closed`, no retry |
+| `CHANNEL_ERROR`/`TIMED_OUT` while inactive, no retry cycle in progress (state was `subscribed`, or this was the first subscribe) | `closeChannel` → `closed`; `resubscribe` is not called (`:600-618`) | leave → internal `closed` (public `reconnecting` if the public state changed). Counter unchanged. No delay. |
 | `CHANNEL_ERROR`/`TIMED_OUT` while active | `resubscribe` with backoff | retry with backoff |
+| `CHANNEL_ERROR`/`TIMED_OUT` while a retry cycle is in progress | the for-loop keeps going whatever the activity; the attempt counts (`:461-495`) | same: `retry` does not read `isActive()`. The delay fires, then `refreshAuth` + `join`. The cycle can reach `error` while inactive (plan-attack F2). |
 | `CLOSED` | status `closed` | state `closed` (channel left) |
-| Activity regained | `resubscribeInactiveChannels` for `closed`/`error`/idle (`:423-443`) | `closed` → fresh cycle (counter 0). `error` is **not** restarted (Decision 7). |
-| Hidden tab, no error | stays subscribed (no proactive unsubscribe, `:334-373`) | same |
-| First subscribe | at mount, even if hidden | at `open()`, even if inactive |
-| Inactive during a backoff | keeps counting toward `error` | after the delay, if inactive → `closed` (abandon). **Deliberate deviation**, per the RunScope rule "a loop that cannot proceed returns; its next trigger restarts" (`run-scope.ts:76-80`). The result is that a backgrounded tab can no longer reach the terminal error screen while hidden. |
-| Online/active source | `navigator.onLine` + `!document.hidden` (`supabase-realtime-hooks.ts:28-36`) | `SdkConfig.activity` (`domain/sdk/index.ts:50-54`, `:62`). The web adapter reports `visibilityState !== 'hidden'` and an online flag seeded `true` (`apps/web-wallet/app/features/shared/browser-activity.client.ts`). **Minor delta:** a tab that boots offline makes a first join attempt, which master skipped. It fails into `closed` and recovers on `online`. |
+| Activity regained | `resubscribeInactiveChannels` for `closed`/`error`/idle (`:423-429`) | internal `closed` → fresh cycle (counter 0). `error` is **not** restarted (Decision 7; master's manager would restart it). |
+| Hidden or offline, channel up | stays subscribed: `setOnlineStatus`/`setActiveStatus` only store the flag (`:334-372`) | same |
+| First subscribe | at mount, even if hidden or offline: `subscribeToChannel` never reads the flags (`:542-631`) | at `open()`, even if inactive. Not a delta. |
+| Inactive during a backoff | the timer keeps running; the join is attempted; the attempt counts (`:461-495`) | same (plan-attack F2) |
+| Online/active source | `!isOnline \|\| !isActive` (`:109-111`), fed by `navigator.onLine` + `!document.hidden` (`supabase-realtime-hooks.ts:28-36`) | `SdkConfig.activity` (`domain/sdk/index.ts:50-54`, `:62`). The web adapter is the same AND (`apps/web-wallet/app/features/shared/browser-activity.client.ts:7`), so one bit is enough. |
 
 **Mapping internal states to the public payload.** Emit on change only,
 except `connected`, which is emitted on every entry.
@@ -423,7 +447,18 @@ except `connected`, which is emitted on every entry.
 
 **Stale callbacks.** Each `join()` handle is compared against the current
 handle before its status or broadcast callbacks act. A superseded join's
-`CLOSED`, caused by our own `removeChannel`, is ignored.
+`CLOSED`, caused by our own `removeChannel`, is ignored. `startLeave()` (S1)
+clears the current handle before it calls `leave()`, so this holds even when
+realtime-js fires that `CLOSED` synchronously, which it does when the socket
+cannot push (`RealtimeChannel.js:381-384`).
+
+**A leave that fails (plan-attack F1).** An `'error'` reply to `phx_leave`
+resolves `removeChannel` without running the channel's close hook
+(`RealtimeChannel.js:378-380`), so the topic stays registered and the next
+`channel(topic)` would hand the dead channel back. The transport's `leave()`
+then drops the channel from `client.channels` (a public field,
+`RealtimeClient.d.ts:64`) and tears it down (S1). After `leave()` resolves,
+the topic is always free.
 
 **Channel rejoin timers.** realtime-js's channel has its own rejoin timer
 (`RealtimeChannel.js:70-105`). As on master, the feed removes and rebuilds
@@ -459,7 +494,13 @@ logged by the SDK. Effects on the rest of the app:
 - `root.tsx:37` changes only its import path.
 - The 'Connection lost' screen and Reload button (`root.tsx:225-226`,
   `:265-279`) are unchanged.
-- Sentry grouping by `name` is unchanged (`root.tsx:371-379`).
+- The `SupabaseRealtimeError` branch does not set `shouldReport`, so
+  `root.tsx:374-379` does not send it to Sentry. Keep it that way. The match
+  is `instanceof` (`root.tsx:265`); the moved class keeps it because
+  `root.tsx` and the throw site import the same class (plan-attack F7).
+- The web throws during render, after `setFailed(true)`, never inside the
+  `connection.changed` callback: `dispatch` swallows a handler's throw
+  (`events.ts:129-133`).
 
 **Named delta:** on master, navigating back off the error screen remounted
 `Wallet` and started a fresh subscribe cycle. Now it re-throws from the
@@ -600,7 +641,7 @@ export type FeedEmission = {
   [K in FeedEvent]: { event: K; payload: WalletEventMap[K] };
 }[FeedEvent];
 
-/** A joined channel; `leave()` resolves once the channel is removed. */
+/** A joined channel; `leave()` resolves once the channel is removed and its topic is free for a new join. */
 export type RealtimeJoin = { leave(): Promise<void> };
 
 /** The narrow seam over realtime-js the feed drives; faked in tests. */
@@ -629,7 +670,13 @@ export function createSupabaseRealtimeTransport(client: RealtimeClient): Realtim
         .subscribe((status, error) => listener.onStatus(status, error));
       return {
         leave: async () => {
-          await client.removeChannel(channel);
+          const status = await client.removeChannel(channel);
+          if (status === 'error') {
+            // An 'error' leave reply skips the channel's close hook, so the
+            // topic stays registered and channel(topic) would return it.
+            client.channels = client.channels.filter((c) => c !== channel);
+            channel.teardown();
+          }
         },
       };
     },
@@ -663,45 +710,74 @@ export function createRealtimeFeed(deps: RealtimeFeedDeps): RealtimeFeed { … }
 ```
 
 **Body rules.** The module-level `systemClock` copies
-`task-processor-runtime.ts:40-49`. The class must follow these rules:
+`task-processor-runtime.ts:40-49`. Besides the scope set, the class keeps:
+`userId`, the current join handle `current`, the internal state, the retry
+`counter`, `inRetryCycle`, `disposed`, and `pendingLeave: Promise<void>`
+(initially resolved). `pendingLeave` belongs to the instance, not to a
+scope. It survives `scopes.cancel()`, so a new scope waits for a leave that
+the previous scope started (plan-attack F1). The class must follow these
+rules:
 
-- `open()` resolves the session as described in Decision 1. It then runs
-  `scope = scopes.renew()` and
-  `scope.onCleanup(deps.activity.subscribe(() => onActivity(scope)))`. Finally
-  it subscribes via `void subscribe(scope)` at attempt 0.
+- **`startLeave()`** (synchronous):
+  1. Take `current` and set `current = undefined` first, so a `CLOSED` from
+     our own leave fails the `current === handle` check.
+  2. If there was a join, call `join.leave()` now (this sets the channel to
+     `leaving` synchronously) and chain it:
+     `pendingLeave = Promise.allSettled([pendingLeave, leaving]).then(() => undefined)`.
+- **`open()`:** the four steps of Decision 1, in that order. For a new user
+  it runs `close()`, sets `userId`, then `scope = scopes.renew()` and
+  `scope.onCleanup(deps.activity.subscribe(() => onActivity(scope)))`.
+  Finally it calls `void subscribe(scope)` with the counter at 0.
 - **`subscribe(scope)`:**
-  1. Leave any current join, tracked with `void scope.track(join.leave())`.
-  2. Run `await scope.track(deps.transport.refreshAuth())`. If it rejects,
-     treat it as a failure (go to `retry`).
-  3. `if (!scope.alive) return;`
-  4. Call `deps.transport.join(\`wallet:${userId}\`, …)` and keep the handle.
-     Callbacks act only when `scope.alive && current === handle`.
+  1. `startLeave()` (a no-op without a current join), then
+     `await scope.track(pendingLeave)`. This also waits for a leave that
+     `close()` started on the previous scope.
+  2. `if (!scope.alive) return;`
+  3. `await scope.track(deps.transport.refreshAuth())`. A rejection is a
+     failure: `fail(scope, error)`, then return.
+  4. `if (!scope.alive) return;`
+  5. `current = deps.transport.join(\`wallet:${userId}\`, …)`. Callbacks act
+     only when `scope.alive && current === handle`.
+- **`fail(scope, error)`** (for `CHANNEL_ERROR`, `TIMED_OUT` and a
+  `refreshAuth` rejection):
+  - If `!deps.activity.isActive()` and `!inRetryCycle`: `startLeave()`,
+    internal `closed`, return. No delay is armed and the counter does not
+    change.
+  - Otherwise `inRetryCycle = true` and `void retry(scope, error)`.
 - **`onStatus`:**
-  - `SUBSCRIBED` → reset the counter, set state `subscribed`, emit `connected`.
-  - `CLOSED` → leave, set `closed`.
-  - `CHANNEL_ERROR` / `TIMED_OUT` → `void retry(scope, error)`.
-- **`retry`:**
-  1. Leave the channel.
-  2. If inactive → `closed` and return.
-  3. If the counter equals `RETRY_DELAYS_MS.length` → `error`, log, and
-     return.
-  4. Otherwise set `reconnecting` and
-     `await scope.delay(RETRY_DELAYS_MS[counter++])`.
-  5. If the scope is dead, return. If inactive → `closed` and return.
-  6. Otherwise `subscribe(scope)`.
-- **`onActivity(scope)`:** if `isActive()` and the state is `closed`, reset
-  the counter and `subscribe(scope)`. Any other state does nothing.
+  - `SUBSCRIBED` → `inRetryCycle = false`, counter 0, internal `subscribed`,
+    emit `connected`.
+  - `CLOSED` → `startLeave()`, `inRetryCycle = false`, internal `closed`.
+  - `CHANNEL_ERROR` / `TIMED_OUT` → `fail(scope, error)`.
+- **`retry(scope, error)`:**
+  1. `startLeave()`.
+  2. If `counter === RETRY_DELAYS_MS.length`: `inRetryCycle = false`,
+     internal `error`, `logger.error('Realtime channel failed', …)`, emit
+     `error`, return.
+  3. Internal `reconnecting`, then
+     `await scope.delay(RETRY_DELAYS_MS[counter++])`. The leave runs during
+     the delay.
+  4. `if (!scope.alive) return;`
+  5. `void subscribe(scope)`. `retry` never reads `isActive()`: a cycle that
+     started continues while the tab is inactive, as on master
+     (plan-attack F2).
+- **`onActivity(scope)`:** if `deps.activity.isActive()` and the internal
+  state is `closed`: counter 0, then `void subscribe(scope)`. Any other
+  state, including `error` and a retry cycle in progress, does nothing.
 - **`onBroadcast`:**
   1. Look up the route (Decision 4). If none → `debug` log and return.
   2. `emission = await scope.track(route(payload))`.
   3. `if (!scope.alive) return;` then `deps.emit(emission)`.
   4. In the catch block: if the scope is alive → `logger.error('Realtime event decode failed', { event, cause })`.
 - **`close()`:**
-  1. Leave the current join with `void` (not tracked; the scope is dying).
-  2. `scopes.cancel()`.
-  3. Reset the state to `idle`, the user id to `undefined` and the counter
-     to 0.
+  1. `scopes.cancel()` first, so a synchronous `CLOSED` sees a dead scope.
+  2. `startLeave()`. Not awaited and not tracked, so session end stays
+     synchronous. The next `open()` → `subscribe` awaits `pendingLeave`
+     before it calls `transport.join` again.
+  3. Reset the state to `idle`, the user id to `undefined`, the counter to
+     0 and `inRetryCycle` to false.
   4. Emit **nothing**.
+- **`dispose()`:** `disposed = true`, then `close()`.
 
 ### S2. `packages/wallet-sdk/domain/sdk/events.ts` replay diff (Task 1)
 
@@ -768,6 +844,10 @@ export function createRealtimeFeed(deps: RealtimeFeedDeps): RealtimeFeed { … }
 -      onSessionStarted: userProvisioner.provision,
 +      onSessionStarted: async (authUser) => {
 +        await userProvisioner.provision(authUser);
++        // provision() swallows SessionEndedError / DisposedError and returns:
++        // open only while this callback's user is still the live session.
++        const session = this.authService.getSession();
++        if (!session.isLoggedIn || session.user.id !== authUser.id) return;
 +        realtimeFeed?.open();
 +      },
        onSessionEnded: () => {
@@ -794,7 +874,8 @@ export function createRealtimeFeed(deps: RealtimeFeedDeps): RealtimeFeed { … }
 +      getAccountRepository: accounts.getRepository,
 +      lightningAddressDomain: config.lightningAddressDomain,
 +      activity: config.activity,
-+      emit: ({ event, payload }) => events.emit(event, payload),
++      emit: (emission) =>
++        events.emit(emission.event, emission.payload as never),
 +      logger: config.logger,
 +    });
 +    this.realtimeFeed = realtimeFeed;
@@ -805,9 +886,9 @@ export function createRealtimeFeed(deps: RealtimeFeedDeps): RealtimeFeed { … }
      this.authService.teardown();
 ```
 
-If `events.emit(event, payload)` does not type-check against the correlated
-union, write
-`emit: (e) => events.emit(e.event, e.payload as never)`. Do **not** widen
+The `as never` cast is required: `FeedEmission` is a correlated union, and
+`emit` is generic over one key (`events.ts:136-139`), so the destructured
+form does not type-check (plan-attack F4). Do **not** widen
 `WalletEventEmitter.emit`.
 
 `getSession` must not use `getLiveSession`. It throws `DisposedError`, and a
@@ -878,7 +959,7 @@ change.
 | # | Hook (file:lines at base) | New entries |
 |---|---|---|
 | 1 | `useAccountChangeHandlers` (`accounts/account-hooks.ts:117-136`) | `'account.created': ({ account }) => accountCache.upsert(account)`; `'account.updated'`: same. Drop `useAccountRepository()` here. |
-| 2 | `useTransactionChangeHandlers` (`transactions/transaction-hooks.ts:263-295`) | `'transaction.created': ({ transaction }) => { cache.upsert(transaction); if (transaction.acknowledgmentStatus === 'pending') cache.invalidateUnacknowledgedCount(); }`; `'transaction.updated': ({ transaction }) => { const cached = cache.get(transaction.id); cache.upsert(transaction); if (!cached \|\| cached.acknowledgmentStatus !== transaction.acknowledgmentStatus) cache.invalidateUnacknowledgedCount(); }`. Add `get(id: string) { return this.queryClient.getQueryData<Transaction>([TransactionsCache.Key, id]); }` to `TransactionsCache` (`:29-90`), with a one-line JSDoc. |
+| 2 | `useTransactionChangeHandlers` (`transactions/transaction-hooks.ts:263-295`) | `'transaction.created': ({ transaction }) => { cache.upsert(transaction); if (transaction.acknowledgmentStatus === 'pending') cache.invalidateUnacknowledgedCount(); }`; `'transaction.updated': ({ transaction }) => { const cached = cache.get(transaction.id); cache.upsert(transaction); if (!cached \|\| cached.acknowledgmentStatus !== transaction.acknowledgmentStatus) cache.invalidateUnacknowledgedCount(); }`. Add `get(id: string) { return this.queryClient.getQueryData<Transaction>([TransactionsCache.Key, id]); }` to `TransactionsCache` (`:29-90`), with a one-line JSDoc. Drop `useTransactionRepository()` (`:264`) and its import (`:24`), and delete `transaction-repository-hooks.ts`: this handler is its only caller (plan-attack F5). |
 | 3 | `useCashuReceiveQuoteChangeHandlers` (`receive/cashu-receive-quote-hooks.ts:281-310`) | `.created ({ quote })` → `pendingQuotesCache.add(quote)`; `.updated ({ quote })` → same as master `:297-306` |
 | 4 | `useCashuReceiveSwapChangeHandlers` (`receive/cashu-receive-swap-hooks.ts:132-156`) | `.created ({ swap })` → `pendingSwapsCache.add(swap)`; `.updated` → same as master `:144-155` |
 | 5 | `useCashuSendQuoteChangeHandlers` (`send/cashu-send-quote-hooks.ts:235-266`) | `.created ({ quote })` → `unresolved.add`; `.updated` → same as master `:251-265` |
@@ -946,7 +1027,7 @@ export const useTrackWalletChanges = () => {
     return () => {
       for (const unsubscribe of unsubscribes) unsubscribe();
     };
-  }, [handlersRef, onConnectedRef]);
+  }, []);
 
   if (failed) {
     throw new SupabaseRealtimeError('Realtime channel error');
@@ -954,8 +1035,9 @@ export const useTrackWalletChanges = () => {
 };
 ```
 
-- `useLatest` refs are stable, so the effect runs once per mount and gives
-  one replay per mount (Decision 3).
+- `useLatest` is `stableResult` in `biome.jsonc:43`, so the deps are `[]`,
+  as in `supabase-realtime-hooks.ts:108`. The effect runs once per mount and
+  gives one replay per mount (Decision 3; plan-attack F9).
 - The domain-event handlers are registered **before** `connection.changed`.
   The replayed `connected` therefore sweeps only after every handler is in
   place, so an event emitted during the sweep's refetch window is not lost.
@@ -991,14 +1073,39 @@ directly after line 99 (`3. web drops its realtime layer …`) and before the
       still owned by React.
 ```
 
+### S10. Skill docs (Task 2, plan-attack F6)
+
+Skills load before edits, so they must not teach the deleted shape. Edit
+only these two sections:
+
+- `.claude/skills/tanstack-query/references/code-patterns.md:209-247`
+  (the `useTrackDatabaseChanges` sample with `event: 'ACCOUNT_CREATED'`,
+  `accountRepository.toAccount` in the handler and an `onConnected`
+  invalidate). Replace it with the S6/S7 shape: a handler object keyed by
+  contract event (`'account.created'`, `'account.updated'`) that receives the
+  decoded `{ account }` and calls the cache, and a `connection.changed`
+  handler whose `'connected'` state runs the invalidate sweep. State in one
+  sentence that the SDK decodes rows before it emits.
+- `.claude/skills/agicash-wallet-documentation/references/task-processing.md:37-53`
+  ("Realtime Change Tracking"). Replace it with: the SDK owns the
+  `wallet:<userId>` channel (`packages/wallet-sdk/domain/wallet/realtime-feed.ts`)
+  and opens it when a session starts; `useTrackWalletChanges` subscribes to
+  the contract events of the ten handler hooks (S6 rows 1-10, row 10 is the
+  user) plus `connection.changed`; every `connected` runs the 13-invalidate
+  sweep; hidden or offline behavior is Decision 6. Fix the stale "nine".
+
+Do not edit `docs/architecture.md:21` (it stays true), the historical plans,
+or the contract proposal (`2026-07-02-wallet-sdk-contract-proposal.md:400`
+stays true because the class name is unchanged).
+
 ## Canary greps (run before and after Task 2)
 
 | # | Command (repo root) | Expect after Task 2 |
 |---|---|---|
 | G1 | `rg -n "lib/supabase" apps/web-wallet/app` | no matches |
-| G2 | `rg -n "agicashRealtime\|SupabaseRealtimeManager\|useSupabaseRealtime" apps packages` | no matches |
+| G2 | `rg -n "agicashRealtime\|SupabaseRealtimeManager\|useSupabaseRealtime\|useTrackDatabaseChanges\|lib/supabase" apps packages .claude/skills` | no matches (the skill docs are in the Task 2 file map, plan-attack F6) |
 | G3 | `rg -n "realtimeFeed\|sessionToken.reset" packages/wallet-sdk/domain/sdk/sdk.ts` | `realtimeFeed?.close()` appears on a line before `sessionToken.reset()` |
-| G4 | `rg -n "useCashuReceiveQuoteRepository\|useTransactionRepository\|useAccountRepository" apps/web-wallet/app` | each hook still has ≥1 non-realtime caller, or its definition was removed together with its last caller (list any removal in the PR) |
+| G4 | `rg -n "useCashuReceiveQuoteRepository\|useTransactionRepository\|useAccountRepository" apps/web-wallet/app` | `useCashuReceiveQuoteRepository` and `useAccountRepository` each still have ≥1 non-realtime caller; `useTransactionRepository` has no match (deleted with `transaction-repository-hooks.ts`, plan-attack F5) |
 | G5 | `rg -n "from 'react'\|@tanstack" packages/wallet-sdk` | no matches |
 | G6 | `git diff --stat master -- apps/web-wallet/app/features/wallet/task-processing.ts packages/wallet-sdk/domain/wallet/task-processor-runtime.ts` and the six `useProcess*` files | empty |
 | G7 | `rg -n "createRealtimeFeed" packages/wallet-sdk/index.ts packages/wallet-sdk/temporary.ts packages/wallet-sdk/domain/sdk/index.ts` | no matches (internal) |
@@ -1010,7 +1117,7 @@ directly after line 99 (`3. web drops its realtime layer …`) and before the
 | File | Change |
 |---|---|
 | `packages/wallet-sdk/domain/wallet/realtime-feed.ts` | new (S1) |
-| `packages/wallet-sdk/domain/wallet/realtime-feed.test.ts` | new (tests a–p) |
+| `packages/wallet-sdk/domain/wallet/realtime-feed.test.ts` | new (tests a–p, o2, v, w) |
 | `packages/wallet-sdk/domain/sdk/events.ts` | replay-latest for `connection.changed` (S2) |
 | `packages/wallet-sdk/domain/sdk/events.test.ts` | tests q–s |
 
@@ -1037,7 +1144,10 @@ directly after line 99 (`3. web drops its realtime layer …`) and before the
 | `apps/web-wallet/app/features/send/spark-send-quote-hooks.ts` | S6 row 9 |
 | `apps/web-wallet/app/features/user/user-hooks.tsx` | S6 row 10 |
 | `apps/web-wallet/app/lib/supabase/index.ts` and the four `supabase-realtime-*.ts` | delete |
+| `apps/web-wallet/app/features/transactions/transaction-repository-hooks.ts` | delete; its only caller is the realtime handler (`transaction-hooks.ts:264`) (plan-attack F5) |
 | `docs/superpowers/specs/2026-06-24-wallet-sdk-no-cache-production-design.md` | S9 bullet |
+| `.claude/skills/tanstack-query/references/code-patterns.md` | S10: rewrite the event-driven cache-update sample (`:209-247`) |
+| `.claude/skills/agicash-wallet-documentation/references/task-processing.md` | S10: rewrite "Realtime Change Tracking" (`:37-53`) |
 
 The following stay **untouched**:
 
@@ -1056,9 +1166,13 @@ The following stay **untouched**:
 2. Write `realtime-feed.test.ts`. Use a fake `RealtimeTransport` that records
    `refreshAuth`/`join`/`leave` calls in order and exposes
    `fire(status, error?)` / `broadcast(event, payload)` on the current join.
-   Use a fake activity monitor (an `isActive` flag plus `set(active)` that
-   notifies subscribers), and the manual `ScopeClock` pattern from
-   `task-processor-runtime.test.ts`.
+   The fake models realtime-js's topic rule (plan-attack F1): one slot per
+   topic; a `join(topic)` while that topic's `leave()` is unresolved returns
+   a handle whose `fire`/`broadcast` do nothing (the leaving channel).
+   `leave()` resolves at once by default; tests v and w hold it pending and
+   resolve it by hand. Use a fake activity monitor (an `isActive` flag plus
+   `set(active)` that notifies subscribers), and the manual `ScopeClock`
+   pattern from `task-processor-runtime.test.ts:62-89`.
 3. For decoding, inject stubs: pass a fake `db` (unused by the stubs) and
    `getEncryption` returning a sentinel. Test the route table **by event
    name**, which is the table-driven test (b). Stub the mappers through
@@ -1089,7 +1203,7 @@ The following stay **untouched**:
   1. `leave` of the old join
   2. `connection.changed { reconnecting }`
   3. a 0 ms delay
-  4. `refreshAuth`
+  4. `refreshAuth` (after the leave resolved; test v proves the wait)
   5. a new join
 
   `SUBSCRIBED` then emits `connected` again (every entry emits).
@@ -1106,13 +1220,17 @@ The following stay **untouched**:
 - **h. Counter resets on success.** After 5 failures, `SUBSCRIBED`, then 9
   more failures, the feed is still retrying. The terminal error comes only on
   the 10th consecutive failure.
-- **i. Inactive error.** `TIMED_OUT` while inactive leads to leave and
-  `reconnecting` (if it was `connected`), with no delay armed and no join.
-  Activation (`set(true)`) then causes a fresh join, and `SUBSCRIBED` emits
-  `connected`.
-- **j. Inactive during backoff.** A failure while active arms the delay. Going
-  inactive before it fires means that when the delay fires there is no join
-  and the state is `closed`. Activation then rejoins with a fresh budget.
+- **i. Failure while inactive, no cycle in progress.** Subscribed, `set(false)`,
+  `TIMED_OUT`: one `leave`, public `reconnecting`, no armed delay, no further
+  `join`. `set(true)` then causes one `join`, and `SUBSCRIBED` emits
+  `connected`. The counter after that success is 0 (plan-attack F2).
+- **j. Inactive during backoff.** A failure while active arms
+  `RETRY_DELAYS_MS[n]`. `set(false)` before the timer fires does not cancel
+  it. Firing the timer performs `refreshAuth` and `join` while inactive. A
+  further `CHANNEL_ERROR` while still inactive arms the next delay (the
+  attempt counted). Repeating until the budget is exhausted emits one
+  `error` while inactive and leaves the channel, and a later `set(true)`
+  does not join (plan-attack F2).
 - **k. Hidden with no error.** An activity change to inactive while
   subscribed causes no leave and no emission.
 - **l. `CLOSED`.** The feed leaves and the state is `closed`. Activation
@@ -1131,8 +1249,24 @@ The following stay **untouched**:
   - `open()` while logged out does nothing.
   - `dispose()` then `open()` does nothing.
   - `close()` twice is safe.
+- **o2. Late `open()` guards (plan-attack F3).** (1) `open()` while logged
+  in, flip the session to logged out, `open()` again: no new `join`.
+  (2) `dispose()` while `getSession()` still returns the logged-in snapshot,
+  then `open()`: no `join`.
 - **p. `refreshAuth` rejection** counts as a failure: `reconnecting`, then a
   backoff, then a retry.
+- **v. Pending leave blocks the next join (same scope, plan-attack F1).**
+  `SUBSCRIBED`, then `CHANNEL_ERROR`, with the leave held pending. Fire the
+  0 ms delay: no second `join` yet. Resolve the leave: `refreshAuth`, then
+  `join('wallet:<id>')`, and `SUBSCRIBED` emits one `connected`. A
+  `fire('SUBSCRIBED')` on a handle returned while the leave was pending
+  emits nothing.
+- **w. `close()` then `open()` across scopes (plan-attack F1).** Open as A,
+  `SUBSCRIBED`, `close()` with the leave held pending, `open()` as A again:
+  no `join` until the leave resolves; then `join('wallet:A')`, and
+  `SUBSCRIBED` emits `connected`. Repeat with user B while A's leave is
+  pending: B's join also waits for it (one chain), and a late `fire` on A's
+  old handle emits nothing.
 - **q.** (`events.test.ts`) After an emitted `connected`, a late `on()`
   receives it once, synchronously.
 - **r.** (`events.test.ts`) Replay is the **latest** value: after `connected`
@@ -1149,8 +1283,9 @@ The following stay **untouched**:
 3. Rewrite `use-track-wallet-changes.ts` per S7, and apply S6 to the ten hook
    files plus `TransactionsCache.get`.
 4. Apply S8 (`root.tsx`, `wallet.tsx`). Edit `database.client.ts` per
-   Decision 10. Delete the five `lib/supabase` files.
-5. Apply S9 to the design spec.
+   Decision 10. Delete the five `lib/supabase` files and
+   `transaction-repository-hooks.ts`.
+5. Apply S9 to the design spec and S10 to the two skill docs.
 6. Run canaries G1–G7.
 7. Run all six gates.
 
@@ -1218,11 +1353,13 @@ same user, with the DevTools console filtered to `Realtime`.
 | Tab hidden | channel stays | channel stays | 0 |
 | Error while hidden/offline | channel closed; rejoin on return | same | 0 |
 | Offline → online | rejoin, 1 sweep | rejoin, 1 sweep | 0 |
-| Inactive during a backoff | keeps counting; may hit `error` while hidden | abandons → `closed`; rejoins on activation | **deliberate deviation (Decision 6)** |
+| Inactive during a backoff | keeps counting; may hit `error` while hidden | same | 0 (plan-attack F2) |
 | Sign-out | `Wallet` unmount → channel removed | `close()` before token reset → channel removed | 0 |
+| Same-user sign-out then sign-in | the new subscribe waits for the old `removeChannel` | the new join waits for `pendingLeave` | 0 (plan-attack F1) |
 | Terminal error | 'Connection lost'; back-nav retried a fresh cycle | 'Connection lost'; back-nav re-throws; reload recovers | **named (Decision 7)** |
+| Show the tab after a terminal `error` | the manager would resubscribe an `error` channel (`:423-429`) behind the error screen | stays `error` until reload | **named (Decision 7)** |
 | Public/marketing route, logged in | no socket | +1 socket, +1 join, 0 sweeps, 0 refetches | **+1 socket (named, Decision 2)** |
-| Boot offline | no join until online | one failed join → `closed` → join on `online` | **named (Decision 6)** |
+| Boot offline | one join attempt; if it fails while inactive → `closed`; join on `online` | same | 0 (plan-attack F2) |
 | Contact domain on a non-canonical origin | realtime contact uses the canonical host | realtime contact uses `window.location.host`, same as fetched contacts | **named (Decision 4)** |
 | Dev console logs | full push/receive bodies (token included) | kind + message only | **named (Decision 8)** |
 
@@ -1254,8 +1391,47 @@ merging Task 2:
 
 ## Open questions
 
-1. **Is the deliberate deviation in Decision 6 acceptable?** A tab that goes
-   inactive mid-backoff abandons the cycle instead of counting toward the
-   terminal error. If the maintainer prefers exact master behaviour, drop the
-   post-delay activity check in `retry`. Tests j and i change accordingly; no
-   other part of the plan is affected.
+None. The first draft's only question (a tab that goes inactive mid-backoff)
+is resolved: match master, which the single-bit activity monitor can express
+(plan-attack F2). `error` stays terminal on activation (Decision 7).
+
+## Plan-attack corrections (2026-10-14)
+
+An adversarial review of the first draft (verdict NOT READY) found the issues
+below. Each fix is folded into the body above, tagged "plan-attack Fn". Where
+older text and a correction disagree, the correction wins.
+
+- **F1 (critical) Leave before join.** realtime-js returns the still-leaving
+  channel for the same topic, and `subscribe()` on it does nothing, so a join
+  issued before the leave finishes hangs with no status. The feed keeps one
+  instance-wide `pendingLeave` chain; every join waits for it, across scopes
+  (same-user sign-out then sign-in). The transport's `leave()` frees the
+  topic even on an `'error'` leave reply. Decision 1, Decision 6, S1, tests
+  e, v, w.
+- **F2 (critical) Hidden and offline parity.** Master keeps a started retry
+  cycle running while inactive, and a failure while inactive closes the
+  channel only when no cycle is in progress. The abandoned-backoff deviation
+  and the boot-offline "minor delta" are removed. Decision 6, S1 `fail` /
+  `retry` / `onActivity`, tests i and j, parity table.
+- **F3 (important) Late `open()`.** `provision` swallows `SessionEndedError` /
+  `DisposedError` and returns, and `getSession()` stays logged in after
+  teardown. `onSessionStarted` opens only for the live user, and `open()`
+  checks `disposed` first. Decision 1, S1, S3, test o2.
+- **F4 (important) `emit` typing.** The `as never` form is the only form.
+  S3.
+- **F5 (important) G4 against the file map.** `transaction-repository-hooks.ts`
+  is deleted with its only caller. S6 row 2, file map, G4.
+- **F6 (important) Skill docs.** Two skill docs describe the deleted layer
+  and are now in the Task 2 file map. S10, G2.
+- **F7 (minor) Sentry.** The realtime error branch is not reported to Sentry,
+  and the match is `instanceof`. Decision 7.
+- **F8 (minor) Users trigger citation.** `USER_UPDATED` comes from the
+  users-broadcast migration. Decision 4 table.
+- **F9 (nit) Effect deps.** `[]`, because `useLatest` is `stableResult`. S7.
+
+The review confirmed the rest without change: the event and mapper table
+against the trigger payloads, `TransactionsCache.get`, the replay and sweep
+counts (including StrictMode and identity change while `Wallet` stays
+mounted), token order and callback-mode auth, one socket per tab, the
+logging parity (`logLevel: 'info'` is already on master's connecting
+client), the routes in Decision 2, and the decision to add no web unit test.
