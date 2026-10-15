@@ -136,4 +136,46 @@ describe('WalletEventEmitter', () => {
       expect(received).toEqual([]);
     });
   });
+
+  describe('connection.changed replay-latest', () => {
+    it('q. replays connected once, synchronously, to a late subscriber', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      const payload = { state: 'connected' as const };
+      emitter.emit('connection.changed', payload);
+
+      const received: unknown[] = [];
+      emitter.on('connection.changed', (p) => {
+        received.push(p);
+      });
+
+      expect(received).toEqual([payload]);
+    });
+
+    it('r. replays only the latest connection state', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      emitter.emit('connection.changed', { state: 'connected' });
+      const latest = { state: 'reconnecting' as const };
+      emitter.emit('connection.changed', latest);
+
+      const received: unknown[] = [];
+      emitter.on('connection.changed', (p) => {
+        received.push(p);
+      });
+
+      expect(received).toEqual([latest]);
+    });
+
+    it('s. does not replay connection state after clear', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      emitter.emit('connection.changed', { state: 'error' });
+      emitter.clear();
+
+      const received: unknown[] = [];
+      emitter.on('connection.changed', (p) => {
+        received.push(p);
+      });
+
+      expect(received).toEqual([]);
+    });
+  });
 });

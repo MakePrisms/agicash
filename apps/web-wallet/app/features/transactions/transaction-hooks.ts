@@ -3,7 +3,6 @@ import {
   NotFoundError,
   type Transaction,
 } from '@agicash/wallet-sdk';
-import type { AgicashDbTransaction } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,
   type QueryClient,
@@ -21,7 +20,7 @@ import {
   useCashuSendSwapRepository,
   useCashuSendSwapService,
 } from '../send/cashu-send-swap-hooks';
-import { useTransactionRepository } from './transaction-repository-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 /**
  * Cache that manages transaction data and acknowledgment counts.
@@ -45,6 +44,14 @@ class TransactionsCache {
       (curr) =>
         !curr || transaction.version > curr.version ? transaction : undefined,
     );
+  }
+
+  /** Returns the cached transaction for this id, if the per-id query has data. */
+  get(id: string) {
+    return this.queryClient.getQueryData<Transaction>([
+      TransactionsCache.Key,
+      id,
+    ]);
   }
 
   /**
@@ -260,39 +267,29 @@ export function useReverseTransaction({
 /**
  * Hook that returns a transaction change handler.
  */
-export function useTransactionChangeHandlers() {
-  const transactionRepository = useTransactionRepository();
+export function useTransactionChangeHandlers(): WalletChangeHandlers<
+  'transaction.created' | 'transaction.updated'
+> {
   const transactionsCache = useTransactionsCache();
 
-  return [
-    {
-      event: 'TRANSACTION_CREATED',
-      handleEvent: async (payload: AgicashDbTransaction) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
+  return {
+    'transaction.created': ({ transaction }) => {
+      transactionsCache.upsert(transaction);
 
-        if (transaction.acknowledgmentStatus === 'pending') {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
+      if (transaction.acknowledgmentStatus === 'pending') {
+        transactionsCache.invalidateUnacknowledgedCount();
+      }
     },
-    {
-      event: 'TRANSACTION_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbTransaction & {
-          previous_acknowledgment_status: Transaction['acknowledgmentStatus'];
-        },
-      ) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
+    'transaction.updated': ({ transaction }) => {
+      const cached = transactionsCache.get(transaction.id);
+      transactionsCache.upsert(transaction);
 
-        if (
-          payload.previous_acknowledgment_status !==
-          transaction.acknowledgmentStatus
-        ) {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
+      if (
+        !cached ||
+        cached.acknowledgmentStatus !== transaction.acknowledgmentStatus
+      ) {
+        transactionsCache.invalidateUnacknowledgedCount();
+      }
     },
-  ];
+  };
 }

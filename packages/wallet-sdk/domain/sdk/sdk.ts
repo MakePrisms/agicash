@@ -33,6 +33,11 @@ import { createTransactionsApi } from '../transactions/transactions-api';
 import { createTransferApi } from '../transfer/transfer-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
+import {
+  type RealtimeFeed,
+  createRealtimeFeed,
+  createSupabaseRealtimeTransport,
+} from '../wallet/realtime-feed';
 import { createTaskProcessor } from '../wallet/task-processor-runtime';
 import { WalletEventEmitter } from './events';
 import { type OwnedSessionKeys, createSessionKeys } from './session-keys';
@@ -67,6 +72,7 @@ export class AgicashSdk implements Sdk {
 
   private readonly authService: AuthService;
   private readonly keys: OwnedSessionKeys;
+  private readonly realtimeFeed: RealtimeFeed;
   private disposed = false;
 
   private constructor(config: SdkConfig) {
@@ -107,6 +113,9 @@ export class AgicashSdk implements Sdk {
     // useConst demands a const, which cannot work — the onSessionEnded closure
     // above must capture the binding before the runtime exists to assign.
     let taskProcessor: TaskProcessorApi | undefined = undefined;
+    // Same two-assignment pattern as taskProcessor: the session callbacks
+    // below capture the binding before the feed (which needs db) exists.
+    let realtimeFeed: RealtimeFeed | undefined = undefined;
 
     this.authService = new AuthService({
       os: openSecret,
@@ -115,11 +124,21 @@ export class AgicashSdk implements Sdk {
         (await config.auth.generateGuestPassword?.()) ??
         generateRandomPassword(32),
       events,
-      onSessionStarted: userProvisioner.provision,
+      onSessionStarted: async (authUser) => {
+        await userProvisioner.provision(authUser);
+        // provision() swallows SessionEndedError / DisposedError and returns:
+        // open only while this callback's user is still the live session.
+        const session = this.authService.getSession();
+        if (!session.isLoggedIn || session.user.id !== authUser.id) return;
+        realtimeFeed?.open();
+      },
       onSessionEnded: () => {
         if (taskProcessor) {
           void taskProcessor.stop();
         }
+        // Leave before the token reset: a joined channel would otherwise be
+        // pushed the logged-out (null) token on the next auth refresh.
+        realtimeFeed?.close();
         // The token cache must die with the session: a token minted for one
         // user must never serve the next login's queries. Anything wiped here
         // must fence its own in-flight writes (a generation counter or abort
@@ -152,6 +171,7 @@ export class AgicashSdk implements Sdk {
       url: config.db.url,
       anonKey: config.db.anonKey,
       accessToken: sessionToken.getToken,
+      logger: config.logger,
     });
 
     taskProcessor = createTaskProcessor({
@@ -173,6 +193,23 @@ export class AgicashSdk implements Sdk {
       keys,
       sparkConfig,
     });
+
+    realtimeFeed = createRealtimeFeed({
+      transport: createSupabaseRealtimeTransport(
+        db.realtime,
+        sessionToken.getToken,
+      ),
+      getSession: () => this.authService.getSession(),
+      db,
+      getEncryption: () => keys.getEncryption(),
+      getAccountRepository: accounts.getRepository,
+      lightningAddressDomain: config.lightningAddressDomain,
+      activity: config.activity,
+      emit: (emission) =>
+        events.emit(emission.event, emission.payload as never),
+      logger: config.logger,
+    });
+    this.realtimeFeed = realtimeFeed;
 
     this.auth = this.authService;
     this.user = createUserApi({
@@ -243,6 +280,7 @@ export class AgicashSdk implements Sdk {
     // DisposedError instead of arming a loop that outlives the instance.
     this.disposed = true;
     await this.taskProcessor.stop();
+    this.realtimeFeed.dispose();
     this.authService.teardown();
     this.keys.dispose();
     if (currentInstance === this) {

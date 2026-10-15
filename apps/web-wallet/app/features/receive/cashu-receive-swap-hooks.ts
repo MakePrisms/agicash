@@ -1,5 +1,4 @@
 import type { CashuAccount, CashuReceiveSwap } from '@agicash/wallet-sdk';
-import type { AgicashDbCashuReceiveSwap } from '@agicash/wallet-sdk/temporary';
 import {
   CashuReceiveSwapRepository,
   CashuReceiveSwapService,
@@ -22,6 +21,7 @@ import {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 type CreateProps = {
   token: Token;
@@ -129,32 +129,24 @@ function usePendingCashuReceiveSwaps() {
 /**
  * Hook that returns a cashu receive swap change handler.
  */
-export function useCashuReceiveSwapChangeHandlers() {
+export function useCashuReceiveSwapChangeHandlers(): WalletChangeHandlers<
+  'cashu-receive-swap.created' | 'cashu-receive-swap.updated'
+> {
   const pendingSwapsCache = usePendingCashuReceiveSwapsCache();
-  const cashuReceiveSwapRepository = useCashuReceiveSwapRepository();
 
-  return [
-    {
-      event: 'CASHU_RECEIVE_SWAP_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-        pendingSwapsCache.add(swap);
-      },
+  return {
+    'cashu-receive-swap.created': ({ swap }) => {
+      pendingSwapsCache.add(swap);
     },
-    {
-      event: 'CASHU_RECEIVE_SWAP_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-
-        const isSwapStillPending = swap.state === 'PENDING';
-        if (isSwapStillPending) {
-          pendingSwapsCache.update(swap);
-        } else {
-          pendingSwapsCache.remove(swap);
-        }
-      },
+    'cashu-receive-swap.updated': ({ swap }) => {
+      const isSwapStillPending = swap.state === 'PENDING';
+      if (isSwapStillPending) {
+        pendingSwapsCache.update(swap);
+      } else {
+        pendingSwapsCache.remove(swap);
+      }
     },
-  ];
+  };
 }
 
 export function useProcessCashuReceiveSwapTasks() {

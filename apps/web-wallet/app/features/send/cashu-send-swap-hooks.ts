@@ -5,10 +5,6 @@ import type {
   PendingCashuSendSwap,
 } from '@agicash/wallet-sdk';
 import { SessionEndedError } from '@agicash/wallet-sdk';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendSwap,
-} from '@agicash/wallet-sdk/temporary';
 import {
   CashuSendSwapRepository,
   CashuSendSwapService,
@@ -37,6 +33,7 @@ import { agicashDbClient } from '../agicash-db/database.client';
 import { useCashuReceiveSwapService } from '../receive/cashu-receive-swap-hooks';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 export function useCashuSendSwapRepository() {
   const encryption = useEncryption();
@@ -374,42 +371,26 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
 /**
  * Hook that returns a cashu send quote change handler.
  */
-export function useCashuSendSwapChangeHandlers() {
+export function useCashuSendSwapChangeHandlers(): WalletChangeHandlers<
+  'cashu-send-swap.created' | 'cashu-send-swap.updated'
+> {
   const cashuSendSwapCache = useCashuSendSwapCache();
   const unresolvedSwapsCache = useUnresolvedCashuSendSwapsCache();
-  const cashuSendSwapRepository = useCashuSendSwapRepository();
 
-  return [
-    {
-      event: 'CASHU_SEND_SWAP_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const swap = await cashuSendSwapRepository.toSwap(payload);
-        unresolvedSwapsCache.add(swap);
-      },
+  return {
+    'cashu-send-swap.created': ({ swap }) => {
+      unresolvedSwapsCache.add(swap);
     },
-    {
-      event: 'CASHU_SEND_SWAP_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const swap = await cashuSendSwapRepository.toSwap(payload);
+    'cashu-send-swap.updated': ({ swap }) => {
+      cashuSendSwapCache.updateIfExists(swap);
 
-        cashuSendSwapCache.updateIfExists(swap);
-
-        if (['DRAFT', 'PENDING'].includes(swap.state)) {
-          unresolvedSwapsCache.update(swap);
-        } else {
-          unresolvedSwapsCache.remove(swap);
-        }
-      },
+      if (['DRAFT', 'PENDING'].includes(swap.state)) {
+        unresolvedSwapsCache.update(swap);
+      } else {
+        unresolvedSwapsCache.remove(swap);
+      }
     },
-  ];
+  };
 }
 
 export function useProcessCashuSendSwapTasks() {

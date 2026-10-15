@@ -1,8 +1,6 @@
 import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
-import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
-import { agicashRealtimeClient } from '../agicash-db/database.client';
 import { useTheme } from '../theme';
 import { useHandleSessionEvents } from '../user/auth';
 import { useUser } from '../user/user-hooks';
@@ -51,7 +49,6 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   useSyncThemeWithDefaultCurrency();
 
   useTrackWalletChanges();
-  useSupabaseRealtimeActivityTracking(agicashRealtimeClient);
   useTrackAndUpdateSparkAccountBalances();
 
   const taskProcessor = useTaskProcessor();

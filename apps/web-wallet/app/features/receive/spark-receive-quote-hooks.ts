@@ -11,7 +11,6 @@ import type {
   SparkReceiveQuote,
   TransactionPurpose,
 } from '@agicash/wallet-sdk';
-import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk/temporary';
 import {
   SparkReceiveQuoteRepository,
   SparkReceiveQuoteService,
@@ -38,6 +37,7 @@ import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 function useSparkReceiveQuoteRepository() {
   const encryption = useEncryption();
@@ -205,35 +205,27 @@ export function usePendingSparkReceiveQuotesCache() {
 /**
  * Hook that returns spark receive quote change handlers.
  */
-export function useSparkReceiveQuoteChangeHandlers() {
+export function useSparkReceiveQuoteChangeHandlers(): WalletChangeHandlers<
+  'spark-receive-quote.created' | 'spark-receive-quote.updated'
+> {
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
 
-  return [
-    {
-      event: 'SPARK_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const addedQuote = await sparkReceiveQuoteRepository.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
+  return {
+    'spark-receive-quote.created': ({ quote }) => {
+      pendingQuotesCache.add(quote);
     },
-    {
-      event: 'SPARK_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const quote = await sparkReceiveQuoteRepository.toQuote(payload);
+    'spark-receive-quote.updated': ({ quote }) => {
+      sparkReceiveQuoteCache.updateIfExists(quote);
 
-        sparkReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = quote.state === 'UNPAID';
-        if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
-        } else {
-          pendingQuotesCache.remove(quote);
-        }
-      },
+      const isQuoteStillPending = quote.state === 'UNPAID';
+      if (isQuoteStillPending) {
+        pendingQuotesCache.update(quote);
+      } else {
+        pendingQuotesCache.remove(quote);
+      }
     },
-  ];
+  };
 }
 
 const usePendingSparkReceiveQuotes = () => {
