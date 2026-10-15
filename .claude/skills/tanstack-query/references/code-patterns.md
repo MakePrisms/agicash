@@ -214,6 +214,8 @@ The SDK decodes rows before it emits, so handlers receive domain objects and onl
 // app/features/wallet/use-track-wallet-changes.ts
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
+  const accountsCache = useAccountsCache();
+  const transactionsCache = useTransactionsCache();
   const handlers = { ...accountChangeHandlers };
   const handlersRef = useLatest(handlers);
   const onConnectedRef = useLatest(() => {
