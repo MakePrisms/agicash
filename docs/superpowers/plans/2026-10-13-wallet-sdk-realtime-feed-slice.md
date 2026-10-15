@@ -1453,3 +1453,41 @@ counts (including StrictMode and identity change while `Wallet` stays
 mounted), token order and callback-mode auth, one socket per tab, the
 logging parity (`logLevel: 'info'` is already on master's connecting
 client), the routes in Decision 2, and the decision to add no web unit test.
+
+## Code-review corrections (2026-10-15)
+
+A code review of the implemented slice (verdict NOT READY, no critical
+finding) led to one fix commit. Where this section and older text above
+disagree, this section describes the merged code.
+
+- **F1 premise, corrected.** In realtime-js 2.95.2 `unsubscribe()` sets
+  `leaving` before its `_canPush()` check, so a leave always resolves
+  `'ok'` synchronously and the channel is unregistered at once
+  (`RealtimeChannel.js:359-388`, `:77-82`). What `channel(topic)` hands back
+  is any channel still *registered* (joined, joining or errored). The
+  `pendingLeave` chain stays as a cheap guard, and the `'error'` leave branch
+  stays as a defensive path for other realtime-js versions.
+- **The real stall (I1).** Removing the last channel disconnects the socket,
+  which stays `disconnecting` until a 100 ms fallback, and `connect()` is a
+  no-op meanwhile (`RealtimeClient.js:113-118`, `:170-181`). The transport's
+  `leave()` therefore waits until `!client.isDisconnecting()`. Without that, a
+  rejoin after a channel error buffered its `phx_join` until the 10 s join
+  timeout. Master had the same stall.
+- **No stale token (M1).** `refreshAuth()` rejects when the session token is
+  missing or its mint fails. realtime-js would otherwise fall back to its
+  cached token (`RealtimeClient.js:690-698`), so a failed mint for user B
+  could send user A's token on `phx_join wallet:B`.
+  `createSupabaseRealtimeTransport(client, getToken)` takes
+  `sessionToken.getToken`.
+- **Tests.** The transport is tested over a real `RealtimeClient` with a fake
+  WebSocket, including the I1 regression. Test b2 drives all 19 events
+  through the real route-context builder, and test i2 covers the
+  `inRetryCycle` resets. Weak assertions in tests i, j, n, t, u, v and w are
+  tightened.
+- **Smaller items.** Encryption is fetched only for the families that need
+  it. The transport logger also drops the data of a `discarded push` channel
+  log. The web handler map must cover all 19 events at compile time.
+  `SupabaseRealtimeError` lives in
+  `apps/web-wallet/app/features/wallet/supabase-realtime-error.ts`, which
+  `root.tsx` imports, so the root chunk does not pull in the wallet hook
+  graph. The skill sample declares its caches.
