@@ -1,7 +1,5 @@
 import type { Currency } from '@agicash/money';
 import type { Account, User } from '@agicash/wallet-sdk';
-import type { AgicashDbUser } from '@agicash/wallet-sdk/temporary';
-import { ReadUserRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -13,6 +11,7 @@ import { getQueryClient } from '~/features/shared/query-client';
 import { sdk } from '~/features/shared/sdk.client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 export class UserCache {
   public static Key = 'user';
@@ -37,17 +36,14 @@ export function useUserCache() {
   return useMemo(() => new UserCache(queryClient), [queryClient]);
 }
 
-export function useUserChangeHandlers() {
+export function useUserChangeHandlers(): WalletChangeHandlers<'user.updated'> {
   const userCache = useUserCache();
 
-  return [
-    {
-      event: 'USER_UPDATED',
-      handleEvent: async (payload: AgicashDbUser) => {
-        userCache.set(ReadUserRepository.toUser(payload));
-      },
+  return {
+    'user.updated': ({ user }) => {
+      userCache.set(user);
     },
-  ];
+  };
 }
 
 export const getUserFromCache = (

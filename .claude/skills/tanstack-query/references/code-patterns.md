@@ -206,44 +206,53 @@ const acknowledgeInHistoryCache = (queryClient, transaction) => {
 };
 ```
 
-## Event-Driven Cache Updates (Supabase Realtime)
+## Event-Driven Cache Updates (SDK realtime)
+
+The SDK decodes rows before it emits, so handlers receive domain objects and only update the cache.
 
 ```typescript
 // app/features/wallet/use-track-wallet-changes.ts
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
-  const transactionChangeHandlers = useTransactionChangeHandlers();
-
-  useTrackDatabaseChanges({
-    handlers: [...accountChangeHandlers, ...transactionChangeHandlers],
-    onConnected: () => {
-      accountsCache.invalidate(); // Catch events missed during disconnect
-      transactionsCache.invalidate();
-    },
+  const handlers = { ...accountChangeHandlers };
+  const handlersRef = useLatest(handlers);
+  const onConnectedRef = useLatest(() => {
+    accountsCache.invalidate(); // Catch events missed during disconnect
+    transactionsCache.invalidate();
   });
+
+  useEffect(() => {
+    const events = Object.keys(handlersRef.current) as (keyof typeof handlers)[];
+    const unsubscribes = events.map((event) =>
+      sdk.events.on(event, (payload) =>
+        (handlersRef.current[event] as (p: typeof payload) => void)(payload),
+      ),
+    );
+    unsubscribes.push(
+      sdk.events.on('connection.changed', ({ state }) => {
+        if (state === 'connected') onConnectedRef.current();
+      }),
+    );
+    return () => {
+      for (const unsubscribe of unsubscribes) unsubscribe();
+    };
+  }, []);
 };
 
 // Change handler pattern
-export function useAccountChangeHandlers() {
-  const accountRepository = useAccountRepository();
+export function useAccountChangeHandlers(): WalletChangeHandlers<
+  'account.created' | 'account.updated'
+> {
   const accountCache = useAccountsCache();
 
-  return [
-    {
-      event: 'ACCOUNT_CREATED',
-      handleEvent: async (payload) => {
-        const account = await accountRepository.toAccount(payload);
-        accountCache.upsert(account);
-      },
+  return {
+    'account.created': ({ account }) => {
+      accountCache.upsert(account);
     },
-    {
-      event: 'ACCOUNT_UPDATED',
-      handleEvent: async (payload) => {
-        const account = await accountRepository.toAccount(payload);
-        accountCache.update(account); // Version-checked
-      },
+    'account.updated': ({ account }) => {
+      accountCache.upsert(account);
     },
-  ];
+  };
 }
 ```
 

@@ -1,5 +1,6 @@
-import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
-import { useSupabaseRealtime } from '~/lib/supabase';
+import type { WalletEventMap } from '@agicash/wallet-sdk';
+import { useEffect, useState } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useLatest } from '~/lib/use-latest';
 import {
   useAccountChangeHandlers,
@@ -40,54 +41,22 @@ import {
   useTransactionChangeHandlers,
   useTransactionsCache,
 } from '../transactions/transaction-hooks';
-import {
-  useUser,
-  useUserCache,
-  useUserChangeHandlers,
-} from '../user/user-hooks';
+import { useUserCache, useUserChangeHandlers } from '../user/user-hooks';
 
-type DatabaseChangeHandler = {
-  event: string;
-  // biome-ignore lint/suspicious/noExplicitAny: we are not sure what the payload is here. Each table handler defines the payload type.
-  handleEvent: (payload: any) => void | Promise<void>;
+/** Thrown during render when the SDK's realtime channel fails terminally. */
+export class SupabaseRealtimeError extends Error {
+  constructor(
+    message: string,
+    public readonly originalError?: Error,
+  ) {
+    super(message);
+    this.name = 'SupabaseRealtimeError';
+  }
+}
+
+export type WalletChangeHandlers<K extends keyof WalletEventMap> = {
+  [E in K]: (payload: WalletEventMap[E]) => void;
 };
-
-/**
- * Options for the track database changes hook.
- */
-interface Props {
-  /**
-   * The handlers for the database changes.
-   * Each handler is responsible for handling the changes for a specific table.
-   */
-  handlers: DatabaseChangeHandler[];
-  /**
-   * A callback that is called when the channel is initially connected or reconnected.
-   */
-  onConnected?: () => void;
-}
-
-/**
- * Hook that subscribes to all database changes for the wallet using a single broadcast channel.
- * This centralizes all realtime subscriptions into one channel for better scalability.
- */
-function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
-  const onConnectedRef = useLatest(onConnected);
-
-  const userId = useUser((user) => user.id);
-
-  useSupabaseRealtime({
-    channel: agicashRealtimeClient
-      .channel(`wallet:${userId}`, { private: true })
-      .on('broadcast', { event: '*' }, ({ event, payload }) => {
-        const handler = handlers.find((handler) => handler.event === event);
-        handler?.handleEvent(payload);
-      }),
-    onConnected: () => {
-      onConnectedRef.current?.();
-    },
-  });
-}
 
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
@@ -115,36 +84,60 @@ export const useTrackWalletChanges = () => {
   const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
   const userCache = useUserCache();
 
-  useTrackDatabaseChanges({
-    handlers: [
-      ...accountChangeHandlers,
-      ...transactionChangeHandlers,
-      ...cashuReceiveQuoteChangeHandlers,
-      ...cashuReceiveSwapChangeHandlers,
-      ...cashuSendQuoteChangeHandlers,
-      ...cashuSendSwapChangeHandlers,
-      ...contactChangeHandlers,
-      ...sparkReceiveQuoteChangeHandlers,
-      ...sparkSendQuoteChangeHandlers,
-      ...userChangeHandlers,
-    ],
-    onConnected: () => {
-      // Makes sure that data is refetched to get the latest updates from the database.
-      // This handles possibly missed updates while the realtime was not connected yet
-      // or while it was reconnecting.
-      accountsCache.invalidate();
-      transactionsCache.invalidate();
-      cashuReceiveQuoteCache.invalidate();
-      pendingCashuReceiveQuotesCache.invalidate();
-      pendingCashuReceiveSwapsCache.invalidate();
-      unresolvedCashuSendQuotesCache.invalidate();
-      cashuSendSwapCache.invalidate();
-      unresolvedCashuSendSwapsCache.invalidate();
-      contactsCache.invalidate();
-      sparkReceiveQuoteCache.invalidate();
-      pendingSparkReceiveQuotesCache.invalidate();
-      unresolvedSparkSendQuotesCache.invalidate();
-      userCache.invalidate();
-    },
+  const handlers = {
+    ...accountChangeHandlers,
+    ...transactionChangeHandlers,
+    ...cashuReceiveQuoteChangeHandlers,
+    ...cashuReceiveSwapChangeHandlers,
+    ...cashuSendQuoteChangeHandlers,
+    ...cashuSendSwapChangeHandlers,
+    ...contactChangeHandlers,
+    ...sparkReceiveQuoteChangeHandlers,
+    ...sparkSendQuoteChangeHandlers,
+    ...userChangeHandlers,
+  };
+  const handlersRef = useLatest(handlers);
+  const onConnectedRef = useLatest(() => {
+    // Makes sure that data is refetched to get the latest updates from the database.
+    // This handles possibly missed updates while the realtime was not connected yet
+    // or while it was reconnecting.
+    accountsCache.invalidate();
+    transactionsCache.invalidate();
+    cashuReceiveQuoteCache.invalidate();
+    pendingCashuReceiveQuotesCache.invalidate();
+    pendingCashuReceiveSwapsCache.invalidate();
+    unresolvedCashuSendQuotesCache.invalidate();
+    cashuSendSwapCache.invalidate();
+    unresolvedCashuSendSwapsCache.invalidate();
+    contactsCache.invalidate();
+    sparkReceiveQuoteCache.invalidate();
+    pendingSparkReceiveQuotesCache.invalidate();
+    unresolvedSparkSendQuotesCache.invalidate();
+    userCache.invalidate();
   });
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const events = Object.keys(
+      handlersRef.current,
+    ) as (keyof typeof handlers)[];
+    const unsubscribes = events.map((event) =>
+      sdk.events.on(event, (payload) =>
+        (handlersRef.current[event] as (p: typeof payload) => void)(payload),
+      ),
+    );
+    unsubscribes.push(
+      sdk.events.on('connection.changed', ({ state }) => {
+        if (state === 'connected') onConnectedRef.current();
+        if (state === 'error') setFailed(true);
+      }),
+    );
+    return () => {
+      for (const unsubscribe of unsubscribes) unsubscribe();
+    };
+  }, []);
+
+  if (failed) {
+    throw new SupabaseRealtimeError('Realtime channel error');
+  }
 };

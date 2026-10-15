@@ -84,6 +84,19 @@ describe('AgicashSdk.init', () => {
   });
 });
 
+describe('AgicashSdk realtime feed', () => {
+  it('does not emit connection.changed with no session, and dispose resolves', async () => {
+    const sdk = AgicashSdk.create(createConfig());
+    const seen: unknown[] = [];
+    sdk.events.on('connection.changed', (payload) => {
+      seen.push(payload);
+    });
+    expect(seen).toEqual([]);
+    await expect(sdk.dispose()).resolves.toBeUndefined();
+    expect(seen).toEqual([]);
+  });
+});
+
 describe('AgicashSdk namespaces', () => {
   it('wires send and transfer; resolveDestination throws NotImplementedError', async () => {
     const sdk = AgicashSdk.create(createConfig());

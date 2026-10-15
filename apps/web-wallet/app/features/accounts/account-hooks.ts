@@ -10,7 +10,6 @@ import {
   type SparkAccount,
   getExtendedAccounts,
 } from '@agicash/wallet-sdk';
-import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk/temporary';
 import {
   getAccountBalance,
   sparkDebugLog,
@@ -26,7 +25,7 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 import { sdk } from '~/features/shared/sdk.client';
 import { useUser } from '../user/user-hooks';
-import { useAccountRepository } from './account-repository-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -114,26 +113,19 @@ export function useAccountsCache() {
 /**
  * Hook that returns an account change handlers.
  */
-export function useAccountChangeHandlers() {
+export function useAccountChangeHandlers(): WalletChangeHandlers<
+  'account.created' | 'account.updated'
+> {
   const accountCache = useAccountsCache();
-  const accountRepository = useAccountRepository();
 
-  return [
-    {
-      event: 'ACCOUNT_CREATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const addedAccount = await accountRepository.toAccount(payload);
-        accountCache.upsert(addedAccount);
-      },
+  return {
+    'account.created': ({ account }) => {
+      accountCache.upsert(account);
     },
-    {
-      event: 'ACCOUNT_UPDATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const updatedAccount = await accountRepository.toAccount(payload);
-        accountCache.upsert(updatedAccount);
-      },
+    'account.updated': ({ account }) => {
+      accountCache.upsert(account);
     },
-  ];
+  };
 }
 
 export const accountsQueryOptions = () => {

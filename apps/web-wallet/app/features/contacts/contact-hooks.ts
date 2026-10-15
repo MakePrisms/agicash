@@ -1,6 +1,4 @@
 import type { Contact } from '@agicash/wallet-sdk';
-import type { AgicashDbContact } from '@agicash/wallet-sdk/temporary';
-import { ContactRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -10,7 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { sdk } from '~/features/shared/sdk.client';
-import useLocationData from '~/hooks/use-location';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 export class ContactsCache {
   public static Key = 'contacts';
 
@@ -132,23 +130,17 @@ export function useFindContactCandidates(query: string) {
 /**
  * Hook that returns a contact change handler.
  */
-export function useContactChangeHandlers() {
+export function useContactChangeHandlers(): WalletChangeHandlers<
+  'contact.created' | 'contact.deleted'
+> {
   const contactsCache = useContactsCache();
-  const { domain } = useLocationData();
 
-  return [
-    {
-      event: 'CONTACT_CREATED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        const contact = ContactRepository.toContact(payload, domain);
-        contactsCache.add(contact);
-      },
+  return {
+    'contact.created': ({ contact }) => {
+      contactsCache.add(contact);
     },
-    {
-      event: 'CONTACT_DELETED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        contactsCache.remove(payload.id);
-      },
+    'contact.deleted': ({ contact }) => {
+      contactsCache.remove(contact.id);
     },
-  ];
+  };
 }
