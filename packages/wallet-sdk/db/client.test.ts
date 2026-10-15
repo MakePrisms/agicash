@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { RealtimeClient } from '@supabase/supabase-js';
 import type { Logger } from '../domain/sdk';
 import { createAgicashDbClient } from './client';
 
@@ -29,6 +30,12 @@ describe('createAgicashDbClient realtime logger', () => {
     client.realtime.log('receive', 'wallet:x broadcast', {
       payload: 'secret',
     });
+    client.realtime.log(
+      'channel',
+      'discarded push due to buffer overflow: access_token',
+      { access_token: 'secret' },
+    );
+    client.realtime.log('channel', 'close wallet:x', { detail: 'kept' });
     client.realtime.log('transport', 'connected', { detail: 'kept' });
 
     const push = lines.find((line) => line.message.includes('Realtime push:'));
@@ -41,6 +48,17 @@ describe('createAgicashDbClient realtime logger', () => {
     expect(receive).toBeDefined();
     expect(JSON.stringify(receive?.meta ?? null)).not.toContain('secret');
 
+    const discarded = lines.find((line) =>
+      line.message.includes('Realtime channel: discarded push'),
+    );
+    expect(discarded).toBeDefined();
+    expect(JSON.stringify(discarded?.meta ?? null)).not.toContain('secret');
+
+    const channel = lines.find((line) =>
+      line.message.includes('Realtime channel: close'),
+    );
+    expect(channel?.meta).toEqual({ data: { detail: 'kept' } });
+
     const transport = lines.find((line) =>
       line.message.includes('Realtime transport:'),
     );
@@ -48,10 +66,9 @@ describe('createAgicashDbClient realtime logger', () => {
     expect(client.realtime.logLevel).toBe('info');
 
     const bare = createAgicashDbClient(baseConfig);
-    const bareAgain = createAgicashDbClient(baseConfig);
+    const fresh = new RealtimeClient('ws://x', { params: { apikey: 'k' } });
     expect(bare.realtime.logLevel).toBeUndefined();
-    expect(bareAgain.realtime.logLevel).toBeUndefined();
-    expect(bare.realtime.logger).toBe(bareAgain.realtime.logger);
+    expect(bare.realtime.logger).toBe(fresh.logger);
     expect(bare.realtime.logger).not.toBe(client.realtime.logger);
   });
 });

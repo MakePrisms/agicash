@@ -96,11 +96,31 @@ export type RealtimeTransport = {
   ): RealtimeJoin;
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Adapts a Supabase `RealtimeClient` to the feed's transport seam.
+ *
+ * @param getToken Resolves the session JWT the client's `accessToken` callback
+ * returns; `refreshAuth()` rejects when it rejects or resolves null.
+ */
 export function createSupabaseRealtimeTransport(
   client: RealtimeClient,
+  getToken: () => Promise<string | null>,
 ): RealtimeTransport {
   return {
-    refreshAuth: () => client.setAuth(),
+    refreshAuth: async () => {
+      // setAuth() swallows a throwing accessToken callback and keeps the
+      // previously cached token, so check the token before handing over.
+      if ((await getToken()) === null) {
+        throw new Error('No session token');
+      }
+      await client.setAuth();
+    },
     join(topic, listener) {
       const channel = client
         .channel(topic, { config: { private: true } })
@@ -112,10 +132,17 @@ export function createSupabaseRealtimeTransport(
         leave: async () => {
           const status = await client.removeChannel(channel);
           if (status === 'error') {
-            // An 'error' leave reply skips the channel's close hook, so the
-            // topic stays registered and channel(topic) would return it.
+            // Defensive for other realtime-js versions (2.95.2 always leaves
+            // 'ok'): an 'error' reply skips the close hook, leaving the topic
+            // registered so channel(topic) would return this channel.
             client.channels = client.channels.filter((c) => c !== channel);
             channel.teardown();
+          }
+          // Removing the last channel disconnects the socket, which stays
+          // 'disconnecting' until a 100 ms fallback timer; connect() is a
+          // no-op meanwhile, so a join now would buffer until it times out.
+          while (client.isDisconnecting()) {
+            await sleep(10);
           }
         },
       };
@@ -452,13 +479,23 @@ function needsAccountRepository(event: BroadcastName): boolean {
   );
 }
 
+function needsEncryption(event: BroadcastName): boolean {
+  return !(
+    event.startsWith('ACCOUNT_') ||
+    event.startsWith('CONTACT_') ||
+    event === 'USER_UPDATED'
+  );
+}
+
 /**
  * One `wallet:<userId>` channel and its reconnect loop.
  *
- * `pendingLeave` is instance-wide, not per scope: realtime-js returns the
- * still-leaving channel for a topic, and `subscribe()` on it never reports a
- * status. Every join waits on that chain, including a join started by the
- * next scope.
+ * `pendingLeave` is instance-wide, not per scope: `channel(topic)` hands back
+ * any channel still registered for the topic (joined, joining, or errored),
+ * and `subscribe()` on it never reports a status. realtime-js 2.95.2
+ * unregisters a leaving channel synchronously, so waiting on the chain is a
+ * cheap guard; every join waits on it, including one started by the next
+ * scope.
  */
 class RealtimeFeedRuntime {
   private userId: string | undefined;
@@ -689,7 +726,9 @@ class RealtimeFeedRuntime {
     scope: RunScope,
     event: BroadcastName,
   ): Promise<RealtimeRouteContext | undefined> {
-    const encryption = await this.deps.getEncryption();
+    const encryption = needsEncryption(event)
+      ? await this.deps.getEncryption()
+      : undefined;
     if (!scope.alive) return undefined;
     const accountRepository = needsAccountRepository(event)
       ? await this.deps.getAccountRepository()
@@ -709,11 +748,13 @@ class RealtimeFeedRuntime {
         break;
       case 'TRANSACTION_CREATED':
       case 'TRANSACTION_UPDATED':
-        ctx.transactionRepository = new TransactionRepository(db, encryption);
+        if (encryption) {
+          ctx.transactionRepository = new TransactionRepository(db, encryption);
+        }
         break;
       case 'CASHU_RECEIVE_QUOTE_CREATED':
       case 'CASHU_RECEIVE_QUOTE_UPDATED':
-        if (accountRepository) {
+        if (encryption && accountRepository) {
           ctx.cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
             db,
             encryption,
@@ -723,7 +764,7 @@ class RealtimeFeedRuntime {
         break;
       case 'CASHU_RECEIVE_SWAP_CREATED':
       case 'CASHU_RECEIVE_SWAP_UPDATED':
-        if (accountRepository) {
+        if (encryption && accountRepository) {
           ctx.cashuReceiveSwapRepository = new CashuReceiveSwapRepository(
             db,
             encryption,
@@ -733,31 +774,39 @@ class RealtimeFeedRuntime {
         break;
       case 'CASHU_SEND_QUOTE_CREATED':
       case 'CASHU_SEND_QUOTE_UPDATED':
-        ctx.cashuSendQuoteRepository = new CashuSendQuoteRepository(
-          db,
-          encryption,
-        );
+        if (encryption) {
+          ctx.cashuSendQuoteRepository = new CashuSendQuoteRepository(
+            db,
+            encryption,
+          );
+        }
         break;
       case 'CASHU_SEND_SWAP_CREATED':
       case 'CASHU_SEND_SWAP_UPDATED':
-        ctx.cashuSendSwapRepository = new CashuSendSwapRepository(
-          db,
-          encryption,
-        );
+        if (encryption) {
+          ctx.cashuSendSwapRepository = new CashuSendSwapRepository(
+            db,
+            encryption,
+          );
+        }
         break;
       case 'SPARK_RECEIVE_QUOTE_CREATED':
       case 'SPARK_RECEIVE_QUOTE_UPDATED':
-        ctx.sparkReceiveQuoteRepository = new SparkReceiveQuoteRepository(
-          db,
-          encryption,
-        );
+        if (encryption) {
+          ctx.sparkReceiveQuoteRepository = new SparkReceiveQuoteRepository(
+            db,
+            encryption,
+          );
+        }
         break;
       case 'SPARK_SEND_QUOTE_CREATED':
       case 'SPARK_SEND_QUOTE_UPDATED':
-        ctx.sparkSendQuoteRepository = new SparkSendQuoteRepository(
-          db,
-          encryption,
-        );
+        if (encryption) {
+          ctx.sparkSendQuoteRepository = new SparkSendQuoteRepository(
+            db,
+            encryption,
+          );
+        }
         break;
       case 'CONTACT_CREATED':
       case 'CONTACT_DELETED':

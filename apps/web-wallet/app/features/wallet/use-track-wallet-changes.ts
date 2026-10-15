@@ -42,17 +42,7 @@ import {
   useTransactionsCache,
 } from '../transactions/transaction-hooks';
 import { useUserCache, useUserChangeHandlers } from '../user/user-hooks';
-
-/** Thrown during render when the SDK's realtime channel fails terminally. */
-export class SupabaseRealtimeError extends Error {
-  constructor(
-    message: string,
-    public readonly originalError?: Error,
-  ) {
-    super(message);
-    this.name = 'SupabaseRealtimeError';
-  }
-}
+import { SupabaseRealtimeError } from './supabase-realtime-error';
 
 export type WalletChangeHandlers<K extends keyof WalletEventMap> = {
   [E in K]: (payload: WalletEventMap[E]) => void;
@@ -95,7 +85,27 @@ export const useTrackWalletChanges = () => {
     ...sparkReceiveQuoteChangeHandlers,
     ...sparkSendQuoteChangeHandlers,
     ...userChangeHandlers,
-  };
+  } satisfies WalletChangeHandlers<
+    | 'user.updated'
+    | 'account.created'
+    | 'account.updated'
+    | 'contact.created'
+    | 'contact.deleted'
+    | 'transaction.created'
+    | 'transaction.updated'
+    | 'cashu-receive-quote.created'
+    | 'cashu-receive-quote.updated'
+    | 'cashu-receive-swap.created'
+    | 'cashu-receive-swap.updated'
+    | 'spark-receive-quote.created'
+    | 'spark-receive-quote.updated'
+    | 'cashu-send-quote.created'
+    | 'cashu-send-quote.updated'
+    | 'cashu-send-swap.created'
+    | 'cashu-send-swap.updated'
+    | 'spark-send-quote.created'
+    | 'spark-send-quote.updated'
+  >;
   const handlersRef = useLatest(handlers);
   const onConnectedRef = useLatest(() => {
     // Makes sure that data is refetched to get the latest updates from the database.

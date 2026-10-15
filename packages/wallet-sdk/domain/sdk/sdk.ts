@@ -195,7 +195,10 @@ export class AgicashSdk implements Sdk {
     });
 
     realtimeFeed = createRealtimeFeed({
-      transport: createSupabaseRealtimeTransport(db.realtime),
+      transport: createSupabaseRealtimeTransport(
+        db.realtime,
+        sessionToken.getToken,
+      ),
       getSession: () => this.authService.getSession(),
       db,
       getEncryption: () => keys.getEncryption(),

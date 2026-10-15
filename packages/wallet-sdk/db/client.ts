@@ -7,7 +7,7 @@ type AgicashDbClientConfig = {
   anonKey: string;
   /** Resolves the Supabase session JWT; null selects the anon key. */
   accessToken: () => Promise<string | null>;
-  /** Receives realtime transport logs at debug; frame bodies of `push`/`receive` are dropped (they carry the access token and row payloads). */
+  /** Receives realtime transport logs at debug; frame bodies of `push`/`receive` and of a `channel` "discarded push" are dropped (they carry the access token and row payloads). */
   logger?: Logger;
 };
 
@@ -22,7 +22,10 @@ export function createAgicashDbClient(
     ...(logger && {
       realtime: {
         logger: (kind: string, msg: string, data?: unknown) => {
-          const keepData = kind !== 'push' && kind !== 'receive';
+          const keepData =
+            kind !== 'push' &&
+            kind !== 'receive' &&
+            !(kind === 'channel' && msg.startsWith('discarded push'));
           logger.debug(
             `Realtime ${kind}: ${msg}`,
             keepData ? { data } : undefined,

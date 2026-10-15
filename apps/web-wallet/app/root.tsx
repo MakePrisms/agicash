@@ -33,7 +33,7 @@ import { ThemeProvider, useTheme } from '~/features/theme';
 import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
-import { SupabaseRealtimeError } from '~/features/wallet/use-track-wallet-changes';
+import { SupabaseRealtimeError } from '~/features/wallet/supabase-realtime-error';
 import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';

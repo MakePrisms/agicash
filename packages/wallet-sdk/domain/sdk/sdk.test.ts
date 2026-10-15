@@ -91,6 +91,7 @@ describe('AgicashSdk realtime feed', () => {
     sdk.events.on('connection.changed', (payload) => {
       seen.push(payload);
     });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(seen).toEqual([]);
     await expect(sdk.dispose()).resolves.toBeUndefined();
     expect(seen).toEqual([]);

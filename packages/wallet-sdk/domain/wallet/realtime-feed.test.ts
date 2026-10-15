@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
+import {
+  REALTIME_SUBSCRIBE_STATES,
+  RealtimeClient,
+} from '@supabase/supabase-js';
 import type {
   AgicashDb,
   AgicashDbContact,
@@ -21,6 +24,7 @@ import {
   type RealtimeTransport,
   createRealtimeFeed,
   createRoutes,
+  createSupabaseRealtimeTransport,
 } from './realtime-feed';
 
 const USER_A = 'user-a';
@@ -145,7 +149,6 @@ function createTransport(): RealtimeTransport & {
   const trace: Trace[] = [];
   const handles: Handle[] = [];
   const releasers: Array<() => void> = [];
-  const pendingByTopic = new Map<string, number>();
   const openByTopic = new Map<string, number>();
   const transport = {
     trace,
@@ -158,11 +161,10 @@ function createTransport(): RealtimeTransport & {
     },
     join(topic: string, listener: Listener): Handle {
       trace.push({ op: 'join', topic });
-      // realtime-js hands back the existing channel for a topic until it has
-      // left, and subscribe() on it reports nothing.
-      const suppressed =
-        (pendingByTopic.get(topic) ?? 0) > 0 ||
-        (openByTopic.get(topic) ?? 0) > 0;
+      // realtime-js hands back the channel still registered for a topic, and
+      // subscribe() on it reports nothing; a broadcast binding still lands on
+      // that shared channel.
+      const suppressed = (openByTopic.get(topic) ?? 0) > 0;
       if (!suppressed) {
         openByTopic.set(topic, (openByTopic.get(topic) ?? 0) + 1);
       }
@@ -176,11 +178,12 @@ function createTransport(): RealtimeTransport & {
           listener.onStatus(status, error);
         },
         broadcast(event, payload) {
-          if (suppressed) return;
           listener.onBroadcast(event, payload);
         },
         leave() {
           trace.push({ op: 'leave', topic });
+          // realtime-js 2.95.2 reports CLOSED and unregisters the channel
+          // synchronously inside unsubscribe(); only the promise is held.
           if (!suppressed && !left) {
             left = true;
             openByTopic.set(
@@ -188,32 +191,21 @@ function createTransport(): RealtimeTransport & {
               Math.max(0, (openByTopic.get(topic) ?? 1) - 1),
             );
           }
-          if (!notifying) {
-            notifying = true;
-            try {
-              if (!suppressed) {
-                listener.onStatus(REALTIME_SUBSCRIBE_STATES.CLOSED);
-              }
-            } finally {
-              notifying = false;
+          if (notifying) return Promise.resolve();
+          notifying = true;
+          try {
+            if (!suppressed) {
+              listener.onStatus(REALTIME_SUBSCRIBE_STATES.CLOSED);
             }
-          } else {
-            return Promise.resolve();
+          } finally {
+            notifying = false;
           }
-          pendingByTopic.set(topic, (pendingByTopic.get(topic) ?? 0) + 1);
           return new Promise((resolve) => {
-            const finish = () => {
-              pendingByTopic.set(
-                topic,
-                Math.max(0, (pendingByTopic.get(topic) ?? 1) - 1),
-              );
-              resolve();
-            };
             if (transport.holdLeaves) {
-              releasers.push(finish);
+              releasers.push(resolve);
               return;
             }
-            finish();
+            resolve();
           });
         },
       };
@@ -255,6 +247,7 @@ type Harness = {
   errorLog: Array<{ message: string; meta: unknown }>;
   setSession(session: AuthSession): void;
   session(): AuthSession;
+  accountRepositoryRequests(): number;
 };
 
 function createHarness(options?: {
@@ -289,15 +282,16 @@ function createHarness(options?: {
     },
   };
   const toAccount = options?.toAccount ?? (async () => ({ tag: 'account' }));
+  let accountRepositoryRequests = 0;
   const feed = createRealtimeFeed({
     transport,
     getSession: () => session,
     db: {} as AgicashDb,
     getEncryption: async () => ({}) as Encryption,
-    getAccountRepository: async () =>
-      ({
-        toAccount,
-      }) as AccountRepository,
+    getAccountRepository: async () => {
+      accountRepositoryRequests += 1;
+      return { toAccount } as AccountRepository;
+    },
     lightningAddressDomain: options?.domain ?? DOMAIN,
     activity: activity.activity,
     emit: (emission) => {
@@ -320,6 +314,7 @@ function createHarness(options?: {
       session = next;
     },
     session: () => session,
+    accountRepositoryRequests: () => accountRepositoryRequests,
   };
 }
 
@@ -631,6 +626,65 @@ describe('createRealtimeFeed', () => {
     ]);
   });
 
+  it('b2. builds a mapper for every broadcast name through the feed', async () => {
+    const names = [
+      'ACCOUNT_CREATED',
+      'ACCOUNT_UPDATED',
+      'TRANSACTION_CREATED',
+      'TRANSACTION_UPDATED',
+      'CASHU_RECEIVE_QUOTE_CREATED',
+      'CASHU_RECEIVE_QUOTE_UPDATED',
+      'CASHU_RECEIVE_SWAP_CREATED',
+      'CASHU_RECEIVE_SWAP_UPDATED',
+      'CASHU_SEND_QUOTE_CREATED',
+      'CASHU_SEND_QUOTE_UPDATED',
+      'CASHU_SEND_SWAP_CREATED',
+      'CASHU_SEND_SWAP_UPDATED',
+      'CONTACT_CREATED',
+      'CONTACT_DELETED',
+      'SPARK_RECEIVE_QUOTE_CREATED',
+      'SPARK_RECEIVE_QUOTE_UPDATED',
+      'SPARK_SEND_QUOTE_CREATED',
+      'SPARK_SEND_QUOTE_UPDATED',
+      'USER_UPDATED',
+    ];
+    const rowFor = (name: string): unknown =>
+      name.startsWith('CONTACT_')
+        ? contactRow
+        : name === 'USER_UPDATED'
+          ? userRow
+          : { id: `row-${name}` };
+    const h = createHarness();
+    await connect(h);
+
+    const requestedFor: string[] = [];
+    for (const name of names) {
+      const before = h.accountRepositoryRequests();
+      h.transport.current().broadcast(name, rowFor(name));
+      await flush();
+      if (h.accountRepositoryRequests() > before) requestedFor.push(name);
+      expect(h.accountRepositoryRequests() - before).toBeLessThanOrEqual(1);
+    }
+
+    const failures = h.errorLog.filter(
+      (entry) => entry.message === 'Realtime event decode failed',
+    );
+    expect(failures.length + domainEvents(h).length).toBe(names.length);
+    for (const failure of failures) {
+      const { cause } = failure.meta as { cause: unknown };
+      const message = cause instanceof Error ? cause.message : String(cause);
+      expect(message.startsWith('Unused realtime mapper')).toBe(false);
+    }
+    expect(requestedFor).toEqual([
+      'ACCOUNT_CREATED',
+      'ACCOUNT_UPDATED',
+      'CASHU_RECEIVE_QUOTE_CREATED',
+      'CASHU_RECEIVE_QUOTE_UPDATED',
+      'CASHU_RECEIVE_SWAP_CREATED',
+      'CASHU_RECEIVE_SWAP_UPDATED',
+    ]);
+  });
+
   it('c. drops an unknown broadcast and logs the event name only', async () => {
     const h = createHarness();
     await connect(h);
@@ -808,6 +862,8 @@ describe('createRealtimeFeed', () => {
     h.activity.set(true);
     await flush();
     expect(h.transport.joinCount()).toBe(joins + 1);
+    await failAndStep(h, RETRY_DELAYS_MS[0] ?? 0);
+    await failAndStep(h, RETRY_DELAYS_MS[1] ?? 0);
     h.transport.current().fire(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
     await flush();
     expect(connectionStates(h).at(-1)).toBe('connected');
@@ -820,6 +876,56 @@ describe('createRealtimeFeed', () => {
       RETRY_DELAYS_MS[0],
     ]);
     expect(connectionStates(h)).not.toContain('error');
+  });
+
+  it('i2. ends a retry cycle on SUBSCRIBED and on CLOSED', async () => {
+    const subscribed = createHarness();
+    await connect(subscribed);
+    subscribed.transport
+      .current()
+      .fire(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error('down'));
+    await flush();
+    subscribed.clock.advance(0);
+    await flush();
+    subscribed.transport.current().fire(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+    await flush();
+    subscribed.activity.set(false);
+    const leaves = subscribed.transport.leaveCount();
+    const joins = subscribed.transport.joinCount();
+    subscribed.transport
+      .current()
+      .fire(REALTIME_SUBSCRIBE_STATES.TIMED_OUT, new Error('down'));
+    await flush();
+    expect(subscribed.transport.leaveCount()).toBe(leaves + 1);
+    expect(subscribed.clock.pending()).toEqual([]);
+    expect(subscribed.transport.joinCount()).toBe(joins);
+    expect(connectionStates(subscribed).at(-1)).toBe('reconnecting');
+
+    const closed = createHarness();
+    await connect(closed);
+    closed.transport
+      .current()
+      .fire(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error('down'));
+    await flush();
+    closed.clock.advance(0);
+    await flush();
+    closed.transport.current().fire(REALTIME_SUBSCRIBE_STATES.CLOSED);
+    await flush();
+    expect(closed.clock.pending()).toEqual([]);
+    closed.activity.set(true);
+    await flush();
+    const closedJoins = closed.transport.joinCount();
+    expect(closedJoins).toBe(3);
+    closed.activity.set(false);
+    const closedLeaves = closed.transport.leaveCount();
+    closed.transport
+      .current()
+      .fire(REALTIME_SUBSCRIBE_STATES.TIMED_OUT, new Error('down'));
+    await flush();
+    expect(closed.transport.leaveCount()).toBe(closedLeaves + 1);
+    expect(closed.clock.pending()).toEqual([]);
+    expect(closed.transport.joinCount()).toBe(closedJoins);
+    expect(connectionStates(closed).at(-1)).toBe('reconnecting');
   });
 
   it('j. keeps a started retry cycle running while inactive until the budget is exhausted', async () => {
@@ -862,6 +968,7 @@ describe('createRealtimeFeed', () => {
     }
 
     const joins = h.transport.joinCount();
+    const leaves = h.transport.leaveCount();
     h.transport
       .current()
       .fire(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error('down'));
@@ -870,7 +977,8 @@ describe('createRealtimeFeed', () => {
       'error',
     ]);
     expect(h.transport.joinCount()).toBe(joins);
-    expect(h.transport.leaveCount()).toBeGreaterThan(0);
+    expect(h.transport.leaveCount()).toBe(leaves + 1);
+    expect(h.trace.at(-2)).toEqual({ op: 'leave', topic: `wallet:${USER_A}` });
     expect(h.clock.pending()).toEqual([]);
 
     h.activity.set(true);
@@ -947,17 +1055,22 @@ describe('createRealtimeFeed', () => {
   });
 
   it('n. drops a decode from the previous user after an identity change', async () => {
+    let called = false;
     let resolveDecode: (value: unknown) => void = () => undefined;
     const pending = new Promise((resolve) => {
       resolveDecode = resolve;
     });
     const h = createHarness({
       userId: USER_A,
-      toAccount: () => pending,
+      toAccount: () => {
+        called = true;
+        return pending;
+      },
     });
     await connect(h);
     h.transport.current().broadcast('ACCOUNT_CREATED', { n: 1 });
     await flush();
+    expect(called).toBe(true);
 
     h.feed.close();
     h.setSession(loggedIn(USER_B));
@@ -1072,9 +1185,8 @@ describe('createRealtimeFeed', () => {
     const h = createHarness();
     h.transport.holdLeaves = true;
     await connect(h);
-    h.transport
-      .current()
-      .fire(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error('down'));
+    const old = h.transport.current();
+    old.fire(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error('down'));
     await flush();
     expect(h.clock.pending().map((timer) => timer.ms)).toEqual([0]);
 
@@ -1083,20 +1195,10 @@ describe('createRealtimeFeed', () => {
     expect(h.transport.joinCount()).toBe(1);
     expect(h.transport.refreshCount()).toBe(1);
 
-    const calls = { n: 0 };
-    const dead = h.transport.join(`wallet:${USER_A}`, {
-      onBroadcast: () => {
-        calls.n += 1;
-      },
-      onStatus: () => {
-        calls.n += 1;
-      },
-    }) as Handle;
-    expect(dead.suppressed).toBe(true);
-    dead.fire(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
-    dead.broadcast('ACCOUNT_CREATED', { n: 1 });
+    old.fire(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+    old.broadcast('ACCOUNT_CREATED', { n: 1 });
     await flush();
-    expect(calls.n).toBe(0);
+    expect(domainEvents(h)).toEqual([]);
     expect(
       connectionStates(h).filter((state) => state === 'connected'),
     ).toEqual(['connected']);
@@ -1112,6 +1214,9 @@ describe('createRealtimeFeed', () => {
     expect(
       connectionStates(h).filter((state) => state === 'connected'),
     ).toEqual(['connected', 'connected']);
+    expect(h.transport.handles.every((handle) => !handle.suppressed)).toBe(
+      true,
+    );
   });
 
   it('w. waits for a pending leave across close and open, including a new user', async () => {
@@ -1171,6 +1276,11 @@ describe('createRealtimeFeed', () => {
     expect(
       connectionStates(switched).filter((state) => state === 'connected'),
     ).toEqual(['connected', 'connected']);
+    for (const harness of [same, switched]) {
+      expect(
+        harness.transport.handles.every((handle) => !handle.suppressed),
+      ).toBe(true);
+    }
   });
 
   it('x. starts one join when two activity changes arrive while closed', async () => {
@@ -1193,5 +1303,197 @@ describe('createRealtimeFeed', () => {
       'reconnecting',
       'connected',
     ]);
+    expect(h.transport.handles.every((handle) => !handle.suppressed)).toBe(
+      true,
+    );
+  });
+});
+
+type Frame = [string | null, string | null, string, string, unknown];
+
+function createFakeWebSocket() {
+  const sockets: FakeWebSocket[] = [];
+  class FakeWebSocket {
+    readonly CONNECTING = 0;
+    readonly OPEN = 1;
+    readonly CLOSING = 2;
+    readonly CLOSED = 3;
+    readonly protocol = '';
+    readonly url: string;
+    readyState = 0;
+    binaryType = 'arraybuffer';
+    onopen: ((event: unknown) => void) | null = null;
+    onmessage: ((event: { data: string }) => void) | null = null;
+    onclose: ((event: unknown) => void) | null = null;
+    onerror: ((event: unknown) => void) | null = null;
+    readonly sent: Frame[] = [];
+    addEventListener = (): void => undefined;
+    removeEventListener = (): void => undefined;
+
+    constructor(address: string | URL) {
+      this.url = String(address);
+      sockets.push(this);
+      setTimeout(() => {
+        if (this.readyState !== this.CONNECTING) return;
+        this.readyState = this.OPEN;
+        this.onopen?.({});
+      }, 0);
+    }
+
+    send(data: string): void {
+      const frame = JSON.parse(data) as Frame;
+      this.sent.push(frame);
+      const [joinRef, ref, topic, event] = frame;
+      if (event === 'phx_join') {
+        setTimeout(() => {
+          this.receive([
+            joinRef,
+            ref,
+            topic,
+            'phx_reply',
+            { status: 'ok', response: {} },
+          ]);
+        }, 0);
+      }
+    }
+
+    receive(frame: Frame): void {
+      if (this.readyState !== this.OPEN) return;
+      this.onmessage?.({ data: JSON.stringify(frame) });
+    }
+
+    close(): void {
+      this.readyState = this.CLOSED;
+    }
+  }
+  return { FakeWebSocket, sockets };
+}
+
+function createRealtimeClient() {
+  const { FakeWebSocket, sockets } = createFakeWebSocket();
+  const client = new RealtimeClient('ws://x', {
+    params: { apikey: 'k' },
+    transport: FakeWebSocket,
+    timeout: 1000,
+  });
+  return { client, sockets };
+}
+
+async function waitFor(condition: () => boolean, ms = 500): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error('waitFor timed out');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+const silentLogger: Logger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+};
+
+describe('createSupabaseRealtimeTransport', () => {
+  it('joins a private channel, leaves it synchronously, and rejoins on a new channel', async () => {
+    const { client } = createRealtimeClient();
+    const transport = createSupabaseRealtimeTransport(
+      client,
+      async () => 'session-jwt',
+    );
+    const statuses: REALTIME_SUBSCRIBE_STATES[] = [];
+    const listener = {
+      onBroadcast: () => undefined,
+      onStatus: (status: REALTIME_SUBSCRIBE_STATES) => {
+        statuses.push(status);
+      },
+    };
+
+    const first = transport.join('wallet:x', listener);
+    expect(client.channels.map((channel) => channel.topic)).toEqual([
+      'realtime:wallet:x',
+    ]);
+    const channel = client.channels[0];
+    expect(channel?.private).toBe(true);
+    await waitFor(() =>
+      statuses.includes(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED),
+    );
+
+    const leaving = first.leave();
+    expect(statuses.at(-1)).toBe(REALTIME_SUBSCRIBE_STATES.CLOSED);
+    expect(client.channels).toEqual([]);
+    await leaving;
+
+    const second = transport.join('wallet:x', listener);
+    expect(client.channels).toHaveLength(1);
+    expect(client.channels[0]).not.toBe(channel);
+    await second.leave();
+    expect(client.channels).toEqual([]);
+  });
+
+  it('subscribes on a new socket well before the join timeout after a channel error', async () => {
+    const { client, sockets } = createRealtimeClient();
+    const states: string[] = [];
+    const feed = createRealtimeFeed({
+      transport: createSupabaseRealtimeTransport(
+        client,
+        async () => 'session-jwt',
+      ),
+      getSession: () => loggedIn(USER_A),
+      db: {} as AgicashDb,
+      getEncryption: async () => ({}) as Encryption,
+      getAccountRepository: async () => ({}) as AccountRepository,
+      lightningAddressDomain: DOMAIN,
+      activity: createActivity(true).activity,
+      emit: (emission) => {
+        if (emission.event === 'connection.changed') {
+          states.push(emission.payload.state);
+        }
+      },
+      logger: silentLogger,
+    });
+
+    feed.open();
+    await waitFor(() => states.includes('connected'));
+    const socket = sockets[0];
+    const join = socket?.sent.find((frame) => frame[3] === 'phx_join');
+    if (!socket || !join) throw new Error('no join on the first socket');
+
+    const started = Date.now();
+    socket.receive([join[0], null, join[2], 'phx_error', {}]);
+    await waitFor(
+      () => states.filter((state) => state === 'connected').length === 2,
+      900,
+    );
+
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(states).toEqual(['connected', 'reconnecting', 'connected']);
+    expect(sockets).toHaveLength(2);
+    expect(
+      sockets[1]?.sent.filter((frame) => frame[3] === 'phx_join'),
+    ).toHaveLength(1);
+
+    feed.dispose();
+    await waitFor(
+      () => client.channels.length === 0 && !client.isDisconnecting(),
+    );
+  });
+
+  it('rejects refreshAuth when the session token is missing or fails', async () => {
+    const { client } = createRealtimeClient();
+    await expect(
+      createSupabaseRealtimeTransport(client, async () => null).refreshAuth(),
+    ).rejects.toThrow('No session token');
+    await expect(
+      createSupabaseRealtimeTransport(client, () =>
+        Promise.reject(new Error('mint failed')),
+      ).refreshAuth(),
+    ).rejects.toThrow('mint failed');
+    await expect(
+      createSupabaseRealtimeTransport(
+        client,
+        async () => 'session-jwt',
+      ).refreshAuth(),
+    ).resolves.toBeUndefined();
   });
 });
