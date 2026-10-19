@@ -4,7 +4,7 @@ import { useToast } from '~/hooks/use-toast';
 import { useTheme } from '../theme';
 import { useHandleSessionEvents } from '../user/auth';
 import { useUser } from '../user/user-hooks';
-import { TaskProcessor, useTaskProcessor } from './task-processing';
+import { useTaskProcessor } from './task-processing';
 import { useTrackAndUpdateSparkAccountBalances } from './use-track-spark-account-balances';
 import { useTrackWalletChanges } from './use-track-wallet-changes';
 
@@ -51,15 +51,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   useTrackWalletChanges();
   useTrackAndUpdateSparkAccountBalances();
 
-  const taskProcessor = useTaskProcessor();
-  if (taskProcessor.state === 'error') {
-    throw taskProcessor.error ?? new Error('Task processor entered error');
-  }
+  useTaskProcessor();
 
-  return (
-    <>
-      {taskProcessor.state === 'leader' && <TaskProcessor />}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 };

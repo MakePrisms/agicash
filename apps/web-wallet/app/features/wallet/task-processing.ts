@@ -46,14 +46,12 @@ function getTaskProcessorSnapshot(): {
 }
 
 /**
- * Runs the SDK task processor for this tab and returns its state.
+ * Runs the SDK task processor for this tab and throws when it enters
+ * 'error', so the nearest error boundary shows it.
  * The effect owns the loop, so exactly one mounted component may call this
  * (the Wallet layout): the cleanup stops task processing for the whole tab.
  */
-export function useTaskProcessor(): {
-  state: TaskProcessorState;
-  error?: SdkError;
-} {
+export function useTaskProcessor(): void {
   const userId = useUser((user) => user.id);
   // biome-ignore lint/correctness/useExhaustiveDependencies: userId restarts the loop; it is not read inside
   useEffect(() => {
@@ -62,19 +60,12 @@ export function useTaskProcessor(): {
       void sdk.taskProcessor.stop();
     };
   }, [userId]);
-  return useSyncExternalStore(
+  const { state, error } = useSyncExternalStore(
     subscribeTaskProcessor,
     getTaskProcessorSnapshot,
     () => SERVER_SNAPSHOT,
   );
+  if (state === 'error') {
+    throw error ?? new Error('Task processor entered error');
+  }
 }
-
-/**
- * Sets up background task processing.
- * Background tasks are tasks processed in the background that do not require user interaction.
- * An example of such task is processing paid cashu mint quote to mint the tokens.
- * Should be used only by the user's lead client.
- */
-export const TaskProcessor = () => {
-  return null;
-};
