@@ -109,12 +109,12 @@ export { ContactRepository } from './domain/contacts/contact-repository';
 export { TransactionRepository } from './domain/transactions/transaction-repository';
 export { CashuTokenMeltDataSchema } from './domain/receive/cashu-token-melt-data';
 export { SparkReceiveQuoteSchema } from './domain/receive/spark-receive-quote';
+export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
+export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
 export {
   computeQuoteExpiry,
   getAmountAndFee,
 } from './domain/receive/spark-receive-quote-core';
-export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
-export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
 export { CashuReceiveQuoteRepository } from './domain/receive/cashu-receive-quote-repository';
 export { CashuReceiveSwapRepository } from './domain/receive/cashu-receive-swap-repository';
 export { CashuReceiveSwapService } from './domain/receive/cashu-receive-swap-service';
@@ -122,7 +122,6 @@ export { isClaimingToSameCashuAccount } from './domain/receive/receive-cashu-tok
 export { ReceiveCashuTokenService } from './domain/receive/receive-cashu-token-service';
 export { CashuSendQuoteSchema } from './domain/send/cashu-send-quote';
 export { CashuSendQuoteRepository } from './domain/send/cashu-send-quote-repository';
-export { CashuSendQuoteService } from './domain/send/cashu-send-quote-service';
 export { CashuSendSwapSchema } from './domain/send/cashu-send-swap';
 export { CashuSendSwapRepository } from './domain/send/cashu-send-swap-repository';
 export { CashuSendSwapService } from './domain/send/cashu-send-swap-service';

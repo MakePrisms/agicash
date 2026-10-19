@@ -9,6 +9,9 @@ import { CashuReceiveSwapRepository } from '../receive/cashu-receive-swap-reposi
 import { createCashuReceiveSwapSaga } from '../receive/cashu-receive-swap-saga';
 import { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
 import type { SessionKeys } from '../sdk/session-keys';
+import { CashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
+import { createCashuSendQuoteSaga } from '../send/cashu-send-quote-saga';
+import { CashuSendQuoteService } from '../send/cashu-send-quote-service';
 import { CashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { createCashuSendSwapSaga } from '../send/cashu-send-swap-saga';
 import { CashuSendSwapService } from '../send/cashu-send-swap-service';
@@ -59,6 +62,12 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
   const getSparkSendService = async (): Promise<SparkSendQuoteService> =>
     new SparkSendQuoteService(await getSparkSendRepository());
 
+  const getSendQuoteRepository = async (): Promise<CashuSendQuoteRepository> =>
+    new CashuSendQuoteRepository(deps.db, await deps.keys.getEncryption());
+
+  const getSendQuoteService = async (): Promise<CashuSendQuoteService> =>
+    new CashuSendQuoteService(await getSendQuoteRepository());
+
   const getReceiveQuoteRepository =
     async (): Promise<CashuReceiveQuoteRepository> => {
       const encryption = await deps.keys.getEncryption();
@@ -88,6 +97,10 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
     createCashuReceiveQuoteSaga({
       getRepository: getReceiveQuoteRepository,
       getService: getReceiveQuoteService,
+    }),
+    createCashuSendQuoteSaga({
+      getRepository: getSendQuoteRepository,
+      getService: getSendQuoteService,
     }),
     createSparkSendQuoteSaga({
       getRepository: getSparkSendRepository,

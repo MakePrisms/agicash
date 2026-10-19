@@ -20,10 +20,6 @@ import {
   useSparkReceiveQuoteChangeHandlers,
 } from '../receive/spark-receive-quote-hooks';
 import {
-  useCashuSendQuoteChangeHandlers,
-  useUnresolvedCashuSendQuotesCache,
-} from '../send/cashu-send-quote-hooks';
-import {
   useCashuSendSwapCache,
   useCashuSendSwapChangeHandlers,
 } from '../send/cashu-send-swap-hooks';
@@ -65,13 +61,14 @@ type SagaOnlyEvent =
   | 'cashu-receive-quote.created'
   | 'cashu-send-swap.created'
   | 'spark-send-quote.created'
-  | 'spark-send-quote.updated';
+  | 'spark-send-quote.updated'
+  | 'cashu-send-quote.created'
+  | 'cashu-send-quote.updated';
 
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
   const transactionChangeHandlers = useTransactionChangeHandlers();
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
-  const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
   const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
   const contactChangeHandlers = useContactChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
@@ -80,7 +77,6 @@ export const useTrackWalletChanges = () => {
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendSwapCache = useCashuSendSwapCache();
   const contactsCache = useContactsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
@@ -91,7 +87,6 @@ export const useTrackWalletChanges = () => {
     ...accountChangeHandlers,
     ...transactionChangeHandlers,
     ...cashuReceiveQuoteChangeHandlers,
-    ...cashuSendQuoteChangeHandlers,
     ...cashuSendSwapChangeHandlers,
     ...contactChangeHandlers,
     ...sparkReceiveQuoteChangeHandlers,
@@ -105,7 +100,6 @@ export const useTrackWalletChanges = () => {
     accountsCache.invalidate();
     transactionsCache.invalidate();
     cashuReceiveQuoteCache.invalidate();
-    unresolvedCashuSendQuotesCache.invalidate();
     cashuSendSwapCache.invalidate();
     contactsCache.invalidate();
     sparkReceiveQuoteCache.invalidate();
