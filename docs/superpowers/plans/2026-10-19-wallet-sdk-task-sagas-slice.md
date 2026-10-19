@@ -8,6 +8,9 @@
 > line before you edit it. Third-party behavior that could not be read at the
 > pin (no `node_modules` in the planning checkout) is marked **(unverified)**
 > and listed in the Self-check.
+>
+> **Read "Plan-attack corrections (2026-10-19)" at the end first.** Where it
+> disagrees with older text, the correction wins.
 
 ## Goal
 
@@ -1808,3 +1811,258 @@ The ten claims I am least sure of, and how I checked each.
     and `useGetSparkAccount` across `apps/web-wallet/app`. Every hit is inside
     a processor file being deleted. The task canaries re-check this before
     deleting from `AH`.
+
+## Plan-attack corrections (2026-10-19)
+
+An adversarial review of this plan (verdict NOT READY: 1 Critical, 8
+Important, 1 Minor, 1 Nit) and an orchestrator pass (O1, O2) led to the
+corrections below. **Where this section and older text disagree, this
+section wins.** Implementers read it before the task they implement.
+
+### F1 (Critical, re-rated: a pre-existing master defect; parity kept)
+
+B.6 lists "Breez `idempotencyKey: sendQuote.id` (PS12)" as proof that spark
+`initiateSend` is safely resumable. That claim is **wrong**. When
+`sendPayment` succeeds and `markAsPending` then throws
+(`packages/wallet-sdk/domain/send/spark-send-quote-service.ts:277-299`), the
+retry's `sendPayment` throws `preimage request already exists`, which the
+service maps to `DomainError('Lightning invoice has already been paid.')`
+(`:301-304`, `packages/wallet-sdk/lib/spark/errors.ts:26-31`). Master's
+mutation then fails the quote (`SSQ:447-454`), and so does this saga (Task 6).
+The payment has left the wallet, and the quote ends FAILED.
+
+**Decision:** this slice moves orchestration and keeps service behavior
+(C.6), so Task 6 keeps master's behavior exactly: a `DomainError` from
+`initiateSend` runs `fail(error.message)` on the same key. Delete the PS12
+clause from the B.6 resumability list and add one sentence there: "Spark
+`initiateSend` is not resumable after a successful `sendPayment` whose
+`markAsPending` failed; master has the same defect (F1); the fix is a
+follow-up." The PR lists the follow-up for the maintainer: on
+`isInvoiceAlreadyPaidError`, look up the existing payment
+(`listPayments` filtered to lightning sends, match
+`details.invoice === sendQuote.paymentRequest`) and `markAsPending` with it
+instead of failing; it needs a live mainnet test, which this slice cannot run.
+Task 6 adds test **(i)**: `initiateSend` rejects with
+`DomainError('Lightning invoice has already been paid.')` → one attempt, then
+`fail` with that message on `spark-send-quote-<id>` (pins today's behavior so
+the follow-up shows up as a deliberate test change).
+
+### F2 (Important) — Breez initial checks must survive a failed check
+
+Tasks 5 and 6: add a quote to `checked` **only after** its
+`getPaymentByInvoice` / `getPayment` call resolves (any status). When the
+call throws, log master's line (`'Error checking initial receive payment'` /
+`'Error checking initial send payment status'`, same meta) and leave the id
+out of `checked`, so the next `sync` checks again.
+
+Task 5, `synced`: for each quote of that account whose `expiresAt` is past,
+run the initial-check lookup first. `completed` → the same completion
+handler (complete, not expire). Not completed, or the lookup throws → expire,
+as master. The lookup is local (`SRQ:422` comment), so this adds no network
+request. **Named delta (E):** master expired a past-due quote on `synced`
+without a lookup, so a payment its listener missed ended EXPIRED; the saga
+completes it.
+
+Tests: Task 5 **(j)** a rejected `getPaymentByInvoice`, then a second `sync`
+→ called again; **(k)** `synced` for a past-due quote whose lookup returns
+`completed` → `complete`, no `expire`; **(l)** `synced` for a past-due quote
+whose lookup throws → `expire`. Task 6 **(j)** a rejected `getPayment`, then a
+second `sync` → called again.
+
+### F3 (Important) — stop every tracker continuation when the stint dies
+
+- In `quote-trackers.ts` and in every saga, after **every** await (including
+  the early return of `delayUntil`, a `withRetry`, a state check, or an
+  account read), `if (!stint.scope.alive) return;` before any mint call,
+  `onUpdate`, handler dispatch or `runAction`.
+- The RQ9 expiry recheck calls
+  `withRetry({ fn, retry: 5, signal: stint.scope.signal })`
+  (`packages/utils/src/with-retry.ts:56-76` takes `signal`). In its `catch`:
+  when the signal is aborted or the scope is dead, return without the
+  `'Error checking mint quote upon expiration'` log and without `onUpdate`.
+  The melt expiry check follows the same rule.
+- Replace the B.1 "Session end" paragraph's last sentence and the B.6
+  sign-out reasoning with: "Session end cancels the stint synchronously, then
+  resets the token and the session keys at once (`sdk.ts:139-159`). A service
+  call already inside a mint or Breez request is not joined (only `dispose()`
+  awaits `stop()`), so it may fail its next DB write. Recovery is the next
+  session's idempotent resume (DB-reserved counters with deterministic
+  outputs, `meltProofsIdempotent`, the restore paths in
+  `cashu-receive-quote-service.ts` and `cashu-send-swap-service.ts`). The
+  stint fence only guarantees that no **new** step starts and nothing is
+  emitted."
+- Test (Task 3, `quote-trackers.test.ts`) **(h2)**: cancel the stint while
+  an expiry recheck is in its `withRetry` backoff → no further check, no error
+  log, no `onUpdate`.
+
+### F4 (Important) — the melt amount is in the cashu unit
+
+Tasks 3 and 5, `initiateMelt`, use master's exact expression
+(`CRQ:687`, `CRQ:706-714`):
+
+```ts
+const cashuUnit = getCashuUnit(quote.amount.currency);
+await sourceWallet.meltProofsIdempotent(
+  {
+    quote: quote.tokenReceiveData.meltQuoteId,
+    amount: quote.amount.toNumber(cashuUnit),
+  },
+  quote.tokenReceiveData.tokenProofs,
+  undefined,
+  { type: 'random' },
+);
+```
+
+Test (Task 3 **(l2)**, Task 5 **(h2)**): the object passed to
+`meltProofsIdempotent` has `amount === 1000` for a quote of
+`new Money<Currency>({ amount: 1000, currency: 'BTC', unit: 'sat' })`.
+
+### F5 (Important) — no online check inside the send-swap attempt
+
+Task 2, `swapForProofsToSend`: the attempt returns `undefined` only when
+`set.get(id)?.state !== 'DRAFT'`. Delete "and its account is online". The
+online filter stays in `sync` (X9). Test **(c2)**: the account flips offline
+during the backoff → the second attempt still calls `swapForProofsToSend`.
+
+### F6 (Important) — online status is re-evaluated at the next sync (parity)
+
+Keep master's behavior: an `account.updated` alone does not re-run `sync`.
+Delete the second sentence of Task 1 test (b) ("An `account.updated` that
+flips …"). Replace the E row for X9 with: "the online filter runs on every
+`sync` (a list change, an event, a reload); an `account.updated` alone does
+not trigger one, as master's `select`." Task 5 test (i) stands.
+
+### F7 (Important) — look quotes up by the mint / melt quote id
+
+Add to `WorkingSet<T>` (B.4):
+
+```ts
+/** The first item matching `predicate`, or undefined. */
+find(predicate: (item: T) => boolean): T | undefined;
+```
+
+Lookups (never `set.get(...)` with a mint or melt id):
+
+- mint socket / poll (Task 3): `set.find((q) => q.quoteId === mintQuote.quote)`;
+- cashu receive melt (Task 3) and spark receive melt (Task 5):
+  `set.find((q) => q.type === 'CASHU_TOKEN' && q.tokenReceiveData.meltQuoteId === meltQuote.quote)`;
+- cashu send melt (Task 4): `set.find((q) => q.quoteId === meltQuote.quote)`.
+
+Fixtures in Task 3 (h), (o), (q) and Task 4 (a) use `id: 'quote-1'` with
+`quoteId: 'mint-quote-1'` / `meltQuoteId: 'melt-quote-1'`, and assert that the
+service received the row whose `id === 'quote-1'`. Task 0 test (k) adds one
+`find` assertion.
+
+### F8 (Important) — `delayUntil` is tested in Task 3
+
+Move test (q) out of Task 0 into Task 3's `quote-trackers.test.ts` as test
+**(s)** (Task 0's file map has no `quote-trackers.ts`). Clock steps: `now = 0`; call
+`delayUntil(stint, 2 ** 31 + 10)`; assert the armed timeout is
+`2 ** 31 - 1`; set `now = 2 ** 31 - 1`; fire; assert the next timeout is
+`11`; set `now = 2 ** 31 + 10`; fire; the promise resolves. A past `at`
+resolves with no timer armed. Cancelling the scope mid-wait resolves early
+and arms nothing more.
+
+### F9 (Important) — `stop()` arms a bound only for a non-empty checkpoint set
+
+`join` arms its timer only when that controller has tracked work
+(`packages/wallet-sdk/lib/run-scope.ts:265-272`). Test (t): with only the
+saga's deferred tracked, **one** `5000` timer is armed (the stint
+controller's), and it is cancelled when the deferred resolves. Test (u): the
+same single timer; `stop()` resolves when the test fires it. New test
+**(t2)**: also leave the lead loop's `takeLead` promise unsettled → two
+`5000` timers are armed, and `stop()` resolves only after both checkpoints
+settle (or both timers fire).
+
+### F10 (Minor) — the three-argument debug call in `PSM`
+
+`proof-state-subscription-manager.ts:140`
+`console.debug('allProofsSpent', allProofsSpent, { swapId: swap.id })` becomes
+`this.logger.debug('allProofsSpent', { allProofsSpent, swapId: swap.id })`.
+E notes the meta-shape change. Leave the existing
+`delete this.proofUpdates[swap.id]` (`:143`) as it is; the file lints today.
+
+### F11 (Nit) — Task 1 imports
+
+`cashu-receive-swap-hooks.ts` has no `useSuspenseQuery` import. Remove
+`useQueries`, and `useQuery` / `useQueryClient` only if nothing else in the
+file uses them.
+
+### O1 (Important, orchestrator) — a give-up must re-arm the item
+
+C.4 and C.10 say a failed or abandoned task is "retried by the next trigger
+(…a reload…)" and that "the stint's `onActivated` reload re-triggers every
+pending item". Both are false as written: a reload re-runs `sync`, but
+`sync` skips items already in a saga's once-per dedupe state (`triggered`,
+`lastTriggered`, `checked`), and a socket subscription for an unchanged id
+set is reused (subset reuse, `MINTM:37-49`, `MELTM:37-49`, `PSM:42-48`), so
+no new state message arrives. Master's recovery was its error boundary: the
+failure threw, `TaskProcessor` remounted, and fresh subscriptions re-delivered
+each quote's current state. Without a fix, a failed `completeReceive` or a
+failed `completeSwap` stays pending until the next stint (the next app load
+or leadership change).
+
+**Rule (all six sagas):**
+
+1. `SagaAction<T>` gains `onGiveUp?: () => void`. `runAction` calls it after
+   `onError` when the outcome is `failed`, and alone when the outcome is
+   `abandoned`, in both cases only while the stint scope is alive.
+2. Each saga passes `onGiveUp: () => { resetPending = true; }`.
+3. Each saga registers `stint.onActivated(resetIfPending)` and
+   `stint.onReconnected(resetIfPending)` **before** it calls
+   `startWorkingSet`. `resetIfPending`: when `resetPending` is set, clear it
+   and run the saga's `reset()`: call `unsubscribeAll()` on its managers (the
+   next `subscribe` opens a fresh subscription, and the mint sends each
+   quote's current state, NUT-17), invalidate every armed timer token, clear
+   `triggered` / `lastTriggered` / `checked`, and remove its Breez listeners.
+   The reload that follows (B.4 rule 2) calls `sync`, which re-subscribes,
+   re-arms and re-fires from the database state.
+4. Polling (Task 3, non-NUT-17 mints) needs no reset: its loop keeps
+   checking every 10 s.
+
+Effect: a give-up is retried at the next activation or reconnect, with a
+fresh retry budget, from durable state. That is the 18.1 abandon rule applied
+to failures too, and it matches master's remount without the error page.
+**Delta (E):** master retried a failed action only after the user reloaded
+the error page; the saga retries at the next activation or reconnect.
+
+Tests: Task 0 **(x)** `runAction` calls `onGiveUp` once on `failed` (after
+`onError`) and once on `abandoned`, and not after the scope is dead. Task 1
+**(i)** `completeSwap` fails 4 times; a `'connected'` reload calls it again
+for the same swap. Task 3 **(r)** a failed `complete` on a NUT-17 mint; the
+next activation unsubscribes and subscribes again for that mint. Task 6
+**(k)** a failed `initiateSend`; the next reload initiates again.
+
+### O2 (orchestrator) — smoke step F.3 uses the dev Testnut accounts
+
+Replace smoke step 3. The dev Testnut accounts
+(`https://testnut.cashu.space`, `packages/wallet-sdk/domain/user/user-api.ts:45`,
+`:55`) create lightning invoices from the receive page;
+`canReceiveFromLightning` / `canSendToLightning` gate only cross-mint token
+claims (`apps/web-wallet/app/features/receive/receive-cashu-token-hooks.ts:357`).
+No local nutshell is needed:
+
+- **3a, cashu receive quote:** in B (follower), receive 21 sats to the
+  Testnut BTC account. Testnut's FakeWallet pays the mint quote; A (leader)
+  completes it; B navigates to a completed transaction (not DRAFT).
+- **3b, cashu send quote:** in A, pay a 25-cent invoice created by the
+  Testnut USD account from the Testnut BTC account
+  (`/send?accountId=<testnut-btc-id>#<bolt11>`). A different unit forces
+  FakeWallet's external settle path. A initiates the melt, marks it pending,
+  and completes it.
+- **3c, CASHU_TOKEN cashu receive (melt path):** mint a 50-sat token on
+  `https://testnut.cashudevkit.org` (a mint that is not in `knownTestMints`)
+  and claim it into the Testnut BTC account. The claim creates a CASHU_TOKEN
+  receive quote; A initiates the melt at the source mint, marks it
+  initiated, and completes the quote.
+
+### Verified after planning (2026-10-19)
+
+The open question in G is closed. `node_modules/@tanstack/query-core/build/modern/retryer.js`
+(5.90.20): `defaultRetryDelay(failureCount)` is `Math.min(1e3 * 2 ** failureCount, 3e4)`
+with the pre-increment count, and `canContinue` is
+`focusManager.isFocused() && (networkMode === 'always' || onlineManager.isOnline()) && canRun()`,
+so a paused retry waits for focus **and** online. X7 and X8 stand as
+written; C.10 stands with the O1 re-arm. A mutation's first attempt
+(`canStart`) needs only online.
+
