@@ -2,82 +2,27 @@ import {
   REALTIME_SUBSCRIBE_STATES,
   type RealtimeClient,
 } from '@supabase/supabase-js';
-import type {
-  AgicashDb,
-  AgicashDbAccountWithProofs,
-  AgicashDbCashuProof,
-  AgicashDbCashuReceiveQuote,
-  AgicashDbCashuReceiveSwap,
-  AgicashDbCashuSendQuote,
-  AgicashDbCashuSendSwap,
-  AgicashDbContact,
-  AgicashDbSparkReceiveQuote,
-  AgicashDbSparkSendQuote,
-  AgicashDbTransaction,
-  AgicashDbUser,
-} from '../../db/database';
-import type { Encryption } from '../../lib/encryption';
 import {
   type RunScope,
   type RunScopes,
   type ScopeClock,
   createRunScopes,
 } from '../../lib/run-scope';
-import type { Account } from '../accounts/account';
-import type { AccountRepository } from '../accounts/account-repository';
-import { ContactRepository } from '../contacts/contact-repository';
-import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
-import { CashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
-import type { CashuReceiveSwap } from '../receive/cashu-receive-swap';
-import { CashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
-import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
-import { SparkReceiveQuoteRepository } from '../receive/spark-receive-quote-repository';
 import type {
   ActivityMonitor,
   AuthSession,
   Logger,
   WalletEventMap,
 } from '../sdk';
-import type { CashuSendQuote } from '../send/cashu-send-quote';
-import { CashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
-import type { CashuSendSwap } from '../send/cashu-send-swap';
-import { CashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import type { SparkSendQuote } from '../send/spark-send-quote';
-import { SparkSendQuoteRepository } from '../send/spark-send-quote-repository';
-import type { Transaction } from '../transactions/transaction';
-import { TransactionRepository } from '../transactions/transaction-repository';
-import { ReadUserRepository } from '../user/user-repository';
+import type { ToWalletEvent, WalletEventMessage } from './realtime-broadcasts';
 
+/**
+ * The wait before each rejoin of a failed channel. A failure after the last
+ * wait is terminal.
+ */
 export const RETRY_DELAYS_MS = [
   0, 100, 500, 1000, 3000, 6000, 10000, 20000, 30000,
 ];
-
-/** The `connection.changed` and domain events the feed emits. */
-export type FeedEvent =
-  | 'connection.changed'
-  | 'user.updated'
-  | 'account.created'
-  | 'account.updated'
-  | 'contact.created'
-  | 'contact.deleted'
-  | 'transaction.created'
-  | 'transaction.updated'
-  | 'cashu-receive-quote.created'
-  | 'cashu-receive-quote.updated'
-  | 'cashu-receive-swap.created'
-  | 'cashu-receive-swap.updated'
-  | 'spark-receive-quote.created'
-  | 'spark-receive-quote.updated'
-  | 'cashu-send-quote.created'
-  | 'cashu-send-quote.updated'
-  | 'cashu-send-swap.created'
-  | 'cashu-send-swap.updated'
-  | 'spark-send-quote.created'
-  | 'spark-send-quote.updated';
-
-export type FeedEmission = {
-  [K in FeedEvent]: { event: K; payload: WalletEventMap[K] };
-}[FeedEvent];
 
 /** A joined channel; `leave()` resolves once the channel is removed and its topic is free for a new join. */
 export type RealtimeJoin = { leave(): Promise<void> };
@@ -86,7 +31,11 @@ export type RealtimeJoin = { leave(): Promise<void> };
 export type RealtimeTransport = {
   /** Re-resolves the access token for the socket (`realtime.setAuth()`). */
   refreshAuth(): Promise<void>;
-  /** Joins a private broadcast channel and reports its status changes. */
+  /**
+   * Joins a private broadcast channel and reports its status changes. Calls
+   * `listener` only after it returns; realtime-js 2.95.2 resets the join push
+   * before it registers the status hooks.
+   */
   join(
     topic: string,
     listener: {
@@ -150,260 +99,12 @@ export function createSupabaseRealtimeTransport(
   };
 }
 
-/**
- * Repository mappers for one decode. Tests pass stubs; the feed builds the
- * real repositories from the session's db, encryption, and account repository.
- */
-export type RealtimeRouteContext = {
-  accountRepository: {
-    toAccount(row: AgicashDbAccountWithProofs): Promise<Account>;
-  };
-  transactionRepository: {
-    toTransaction(row: AgicashDbTransaction): Promise<Transaction>;
-  };
-  cashuReceiveQuoteRepository: {
-    toQuote(row: AgicashDbCashuReceiveQuote): Promise<CashuReceiveQuote>;
-  };
-  cashuReceiveSwapRepository: {
-    toReceiveSwap(row: AgicashDbCashuReceiveSwap): Promise<CashuReceiveSwap>;
-  };
-  cashuSendQuoteRepository: {
-    toQuote(
-      row: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
-    ): Promise<CashuSendQuote>;
-  };
-  cashuSendSwapRepository: {
-    toSwap(
-      row: AgicashDbCashuSendSwap & { cashu_proofs: AgicashDbCashuProof[] },
-    ): Promise<CashuSendSwap>;
-  };
-  sparkReceiveQuoteRepository: {
-    toQuote(row: AgicashDbSparkReceiveQuote): Promise<SparkReceiveQuote>;
-  };
-  sparkSendQuoteRepository: {
-    toQuote(row: AgicashDbSparkSendQuote): Promise<SparkSendQuote>;
-  };
-  lightningAddressDomain: string;
-};
-
-const BROADCAST_EVENTS = [
-  'ACCOUNT_CREATED',
-  'ACCOUNT_UPDATED',
-  'TRANSACTION_CREATED',
-  'TRANSACTION_UPDATED',
-  'CASHU_RECEIVE_QUOTE_CREATED',
-  'CASHU_RECEIVE_QUOTE_UPDATED',
-  'CASHU_RECEIVE_SWAP_CREATED',
-  'CASHU_RECEIVE_SWAP_UPDATED',
-  'CASHU_SEND_QUOTE_CREATED',
-  'CASHU_SEND_QUOTE_UPDATED',
-  'CASHU_SEND_SWAP_CREATED',
-  'CASHU_SEND_SWAP_UPDATED',
-  'CONTACT_CREATED',
-  'CONTACT_DELETED',
-  'SPARK_RECEIVE_QUOTE_CREATED',
-  'SPARK_RECEIVE_QUOTE_UPDATED',
-  'SPARK_SEND_QUOTE_CREATED',
-  'SPARK_SEND_QUOTE_UPDATED',
-  'USER_UPDATED',
-] as const;
-
-type BroadcastName = (typeof BROADCAST_EVENTS)[number];
-
-type Decode = (
-  payload: unknown,
-  ctx: RealtimeRouteContext,
-) => Promise<FeedEmission>;
-
-const decoders = {
-  ACCOUNT_CREATED: async (payload, ctx) => ({
-    event: 'account.created',
-    payload: {
-      account: await ctx.accountRepository.toAccount(
-        payload as AgicashDbAccountWithProofs,
-      ),
-    },
-  }),
-  ACCOUNT_UPDATED: async (payload, ctx) => ({
-    event: 'account.updated',
-    payload: {
-      account: await ctx.accountRepository.toAccount(
-        payload as AgicashDbAccountWithProofs,
-      ),
-    },
-  }),
-  TRANSACTION_CREATED: async (payload, ctx) => ({
-    event: 'transaction.created',
-    payload: {
-      transaction: await ctx.transactionRepository.toTransaction(
-        payload as AgicashDbTransaction,
-      ),
-    },
-  }),
-  TRANSACTION_UPDATED: async (payload, ctx) => ({
-    event: 'transaction.updated',
-    payload: {
-      transaction: await ctx.transactionRepository.toTransaction(
-        payload as AgicashDbTransaction,
-      ),
-    },
-  }),
-  CASHU_RECEIVE_QUOTE_CREATED: async (payload, ctx) => ({
-    event: 'cashu-receive-quote.created',
-    payload: {
-      quote: await ctx.cashuReceiveQuoteRepository.toQuote(
-        payload as AgicashDbCashuReceiveQuote,
-      ),
-    },
-  }),
-  CASHU_RECEIVE_QUOTE_UPDATED: async (payload, ctx) => ({
-    event: 'cashu-receive-quote.updated',
-    payload: {
-      quote: await ctx.cashuReceiveQuoteRepository.toQuote(
-        payload as AgicashDbCashuReceiveQuote,
-      ),
-    },
-  }),
-  CASHU_RECEIVE_SWAP_CREATED: async (payload, ctx) => ({
-    event: 'cashu-receive-swap.created',
-    payload: {
-      swap: await ctx.cashuReceiveSwapRepository.toReceiveSwap(
-        payload as AgicashDbCashuReceiveSwap,
-      ),
-    },
-  }),
-  CASHU_RECEIVE_SWAP_UPDATED: async (payload, ctx) => ({
-    event: 'cashu-receive-swap.updated',
-    payload: {
-      swap: await ctx.cashuReceiveSwapRepository.toReceiveSwap(
-        payload as AgicashDbCashuReceiveSwap,
-      ),
-    },
-  }),
-  CASHU_SEND_QUOTE_CREATED: async (payload, ctx) => ({
-    event: 'cashu-send-quote.created',
-    payload: {
-      quote: await ctx.cashuSendQuoteRepository.toQuote(
-        payload as AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ),
-    },
-  }),
-  CASHU_SEND_QUOTE_UPDATED: async (payload, ctx) => ({
-    event: 'cashu-send-quote.updated',
-    payload: {
-      quote: await ctx.cashuSendQuoteRepository.toQuote(
-        payload as AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ),
-    },
-  }),
-  CASHU_SEND_SWAP_CREATED: async (payload, ctx) => ({
-    event: 'cashu-send-swap.created',
-    payload: {
-      swap: await ctx.cashuSendSwapRepository.toSwap(
-        payload as AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ),
-    },
-  }),
-  CASHU_SEND_SWAP_UPDATED: async (payload, ctx) => ({
-    event: 'cashu-send-swap.updated',
-    payload: {
-      swap: await ctx.cashuSendSwapRepository.toSwap(
-        payload as AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ),
-    },
-  }),
-  CONTACT_CREATED: async (payload, ctx) => ({
-    event: 'contact.created',
-    payload: {
-      contact: ContactRepository.toContact(
-        payload as AgicashDbContact,
-        ctx.lightningAddressDomain,
-      ),
-    },
-  }),
-  CONTACT_DELETED: async (payload, ctx) => ({
-    event: 'contact.deleted',
-    payload: {
-      contact: ContactRepository.toContact(
-        payload as AgicashDbContact,
-        ctx.lightningAddressDomain,
-      ),
-    },
-  }),
-  SPARK_RECEIVE_QUOTE_CREATED: async (payload, ctx) => ({
-    event: 'spark-receive-quote.created',
-    payload: {
-      quote: await ctx.sparkReceiveQuoteRepository.toQuote(
-        payload as AgicashDbSparkReceiveQuote,
-      ),
-    },
-  }),
-  SPARK_RECEIVE_QUOTE_UPDATED: async (payload, ctx) => ({
-    event: 'spark-receive-quote.updated',
-    payload: {
-      quote: await ctx.sparkReceiveQuoteRepository.toQuote(
-        payload as AgicashDbSparkReceiveQuote,
-      ),
-    },
-  }),
-  SPARK_SEND_QUOTE_CREATED: async (payload, ctx) => ({
-    event: 'spark-send-quote.created',
-    payload: {
-      quote: await ctx.sparkSendQuoteRepository.toQuote(
-        payload as AgicashDbSparkSendQuote,
-      ),
-    },
-  }),
-  SPARK_SEND_QUOTE_UPDATED: async (payload, ctx) => ({
-    event: 'spark-send-quote.updated',
-    payload: {
-      quote: await ctx.sparkSendQuoteRepository.toQuote(
-        payload as AgicashDbSparkSendQuote,
-      ),
-    },
-  }),
-  USER_UPDATED: async (payload) => ({
-    event: 'user.updated',
-    payload: {
-      user: ReadUserRepository.toUser(payload as AgicashDbUser),
-    },
-  }),
-} satisfies Record<BroadcastName, Decode>;
-
-function isBroadcast(event: string): event is BroadcastName {
-  return Object.hasOwn(decoders, event);
-}
-
-/** Maps each broadcast name to one contract emission using `ctx`'s mappers. */
-export function createRoutes(ctx: RealtimeRouteContext): {
-  [K in BroadcastName]: (payload: unknown) => Promise<FeedEmission>;
-} {
-  const routes = {} as {
-    [K in BroadcastName]: (payload: unknown) => Promise<FeedEmission>;
-  };
-  for (const event of BROADCAST_EVENTS) {
-    routes[event] = (payload) => decoders[event](payload, ctx);
-  }
-  return routes;
-}
-
 export type RealtimeFeedDeps = {
   transport: RealtimeTransport;
   getSession: () => AuthSession;
-  db: AgicashDb;
-  getEncryption: () => Promise<Encryption>;
-  getAccountRepository: () => Promise<AccountRepository>;
-  lightningAddressDomain: string;
+  toWalletEvent: ToWalletEvent;
   activity: ActivityMonitor;
-  emit: (emission: FeedEmission) => void;
+  emit: (message: WalletEventMessage) => void;
   logger: Logger;
   /** Test seam; defaults to the global timers. */
   clock?: ScopeClock;
@@ -412,7 +113,7 @@ export type RealtimeFeedDeps = {
 export type RealtimeFeed = {
   /** Opens the channel for the live session's user; no-op when logged out, disposed, or already open for that user. */
   open(): void;
-  /** Leaves the channel and fences every in-flight decode. Synchronous; idempotent. */
+  /** Leaves the channel and drops every wallet event still in flight. Synchronous; idempotent; emits nothing. */
   close(): void;
   /** `close()`, then every later `open()` is a no-op. */
   dispose(): void;
@@ -429,83 +130,32 @@ const systemClock: ScopeClock = {
   },
 };
 
-type InternalState =
-  | 'idle'
-  | 'subscribing'
-  | 'subscribed'
-  | 'reconnecting'
-  | 'closed'
-  | 'error';
+type ConnectionState = WalletEventMap['connection.changed']['state'];
 
-type PublicConnection = 'connected' | 'reconnecting' | 'error';
+/** How one join ended. */
+type JoinEnd = {
+  /** `closed`: the channel reported CLOSED. `failed`: an error, a timeout, or a rejected auth refresh. */
+  kind: 'closed' | 'failed';
+  /** The channel reached SUBSCRIBED before it ended. */
+  subscribed: boolean;
+  cause?: unknown;
+};
 
-function rejectUnused(name: string): Promise<never> {
-  return Promise.reject(new Error(`Unused realtime mapper: ${name}`));
-}
-
-function emptyRouteContext(domain: string): RealtimeRouteContext {
-  return {
-    accountRepository: { toAccount: () => rejectUnused('account') },
-    transactionRepository: {
-      toTransaction: () => rejectUnused('transaction'),
-    },
-    cashuReceiveQuoteRepository: {
-      toQuote: () => rejectUnused('cashu-receive-quote'),
-    },
-    cashuReceiveSwapRepository: {
-      toReceiveSwap: () => rejectUnused('cashu-receive-swap'),
-    },
-    cashuSendQuoteRepository: {
-      toQuote: () => rejectUnused('cashu-send-quote'),
-    },
-    cashuSendSwapRepository: {
-      toSwap: () => rejectUnused('cashu-send-swap'),
-    },
-    sparkReceiveQuoteRepository: {
-      toQuote: () => rejectUnused('spark-receive-quote'),
-    },
-    sparkSendQuoteRepository: {
-      toQuote: () => rejectUnused('spark-send-quote'),
-    },
-    lightningAddressDomain: domain,
-  };
-}
-
-function needsAccountRepository(event: BroadcastName): boolean {
-  return (
-    event === 'ACCOUNT_CREATED' ||
-    event === 'ACCOUNT_UPDATED' ||
-    event.startsWith('CASHU_RECEIVE_')
-  );
-}
-
-function needsEncryption(event: BroadcastName): boolean {
-  return !(
-    event.startsWith('ACCOUNT_') ||
-    event.startsWith('CONTACT_') ||
-    event === 'USER_UPDATED'
-  );
-}
-
-/**
- * One `wallet:<userId>` channel and its reconnect loop.
- *
- * `pendingLeave` is instance-wide, not per scope: `channel(topic)` hands back
- * any channel still registered for the topic (joined, joining, or errored),
- * and `subscribe()` on it never reports a status. realtime-js 2.95.2
- * unregisters a leaving channel synchronously, so waiting on the chain is a
- * cheap guard; every join waits on it, including one started by the next
- * scope.
- */
-class RealtimeFeedRuntime {
-  private userId: string | undefined;
-  private current: RealtimeJoin | undefined;
-  private state: InternalState = 'idle';
-  private counter = 0;
-  private inRetryCycle = false;
+class RealtimeFeedRuntime implements RealtimeFeed {
+  private topic: string | undefined;
+  private channel: RealtimeJoin | undefined;
+  /**
+   * Settles when every channel left so far is gone, including the socket's
+   * disconnect window (see the transport's `leave()`). Each join waits for
+   * it: realtime-js hands back a channel still registered for the topic, and
+   * that channel never reports a status. It spans sessions, so the next
+   * user's join waits too.
+   */
+  private leaving: Promise<void> = Promise.resolve();
+  /** The channel is down until the next activation starts a new run. */
+  private parked = false;
+  private reported: ConnectionState | undefined;
   private disposed = false;
-  private pendingLeave: Promise<void> = Promise.resolve();
-  private lastEmitted: PublicConnection | undefined;
   private readonly scopes: RunScopes;
 
   constructor(private readonly deps: RealtimeFeedDeps) {
@@ -516,28 +166,29 @@ class RealtimeFeedRuntime {
     if (this.disposed) return;
     const session = this.deps.getSession();
     if (!session.isLoggedIn) return;
-    if (this.userId === session.user.id) return;
+    const topic = `wallet:${session.user.id}`;
+    if (topic === this.topic) return;
     this.close();
-    this.userId = session.user.id;
-    this.counter = 0;
-    this.inRetryCycle = false;
+    this.topic = topic;
     const scope = this.scopes.renew();
     scope.onCleanup(
       this.deps.activity.subscribe(() => {
-        this.onActivity(scope);
+        if (this.parked && this.deps.activity.isActive()) {
+          void this.run(scope, topic);
+        }
       }),
     );
-    void this.subscribe(scope);
+    void this.run(scope, topic);
   }
 
   close(): void {
+    // Cancel first: leave() can report CLOSED synchronously, and the dead
+    // scope has already ended the join that would receive it.
     this.scopes.cancel();
-    this.startLeave();
-    this.state = 'idle';
-    this.userId = undefined;
-    this.counter = 0;
-    this.inRetryCycle = false;
-    this.lastEmitted = undefined;
+    this.leaveChannel();
+    this.topic = undefined;
+    this.parked = false;
+    this.reported = undefined;
   }
 
   dispose(): void {
@@ -545,318 +196,151 @@ class RealtimeFeedRuntime {
     this.close();
   }
 
-  private topic(): string {
-    return `wallet:${this.userId}`;
+  /**
+   * Keeps the channel joined. After a failure it waits the next
+   * `RETRY_DELAYS_MS` delay and joins again; a failure after the last delay
+   * is terminal. A CLOSED channel, or a failure while inactive outside a
+   * retry cycle, parks the feed until the next activation. A cycle that has
+   * started keeps retrying while inactive, as on master.
+   */
+  private async run(scope: RunScope, topic: string): Promise<void> {
+    this.parked = false;
+    let retries = 0;
+    while (scope.alive) {
+      const end = await this.joinUntilEnd(scope, topic);
+      if (end === undefined || !scope.alive) return;
+      this.leaveChannel();
+      if (end.subscribed) retries = 0;
+
+      if (
+        end.kind === 'closed' ||
+        (retries === 0 && !this.deps.activity.isActive())
+      ) {
+        this.parked = true;
+        this.report('reconnecting');
+        return;
+      }
+      if (retries === RETRY_DELAYS_MS.length) {
+        this.deps.logger.error('Realtime channel failed', {
+          topic,
+          cause: end.cause,
+        });
+        this.report('error');
+        return;
+      }
+
+      const delay = RETRY_DELAYS_MS[retries];
+      retries += 1;
+      this.report('reconnecting');
+      this.deps.logger.debug('Realtime channel scheduled resubscribe attempt', {
+        topic,
+        attempt: `${retries}/${RETRY_DELAYS_MS.length}`,
+        delay,
+      });
+      await scope.delay(delay);
+    }
   }
 
-  private startLeave(): void {
-    const join = this.current;
-    this.current = undefined;
-    if (!join) return;
-    const leaving = join.leave();
-    this.pendingLeave = Promise.allSettled([this.pendingLeave, leaving]).then(
+  /**
+   * Joins once the earlier channels have left, and resolves when this one
+   * fails or closes. Resolves undefined when the scope dies first.
+   */
+  private async joinUntilEnd(
+    scope: RunScope,
+    topic: string,
+  ): Promise<JoinEnd | undefined> {
+    await this.leaving;
+    if (!scope.alive) return undefined;
+    try {
+      await this.deps.transport.refreshAuth();
+    } catch (cause) {
+      return { kind: 'failed', subscribed: false, cause };
+    }
+    if (!scope.alive) return undefined;
+
+    return new Promise((resolve) => {
+      let ended = false;
+      let subscribed = false;
+      const end = (result: JoinEnd | undefined) => {
+        ended = true;
+        scope.signal.removeEventListener('abort', onAbort);
+        resolve(result);
+      };
+      const onAbort = () => end(undefined);
+      scope.signal.addEventListener('abort', onAbort);
+
+      this.channel = this.deps.transport.join(topic, {
+        onBroadcast: (name, row) => {
+          if (!ended) void this.emitWalletEvent(scope, name, row);
+        },
+        onStatus: (status, error) => {
+          if (ended) return;
+          if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+            subscribed = true;
+            this.report('connected');
+            return;
+          }
+          end({
+            kind:
+              status === REALTIME_SUBSCRIBE_STATES.CLOSED ? 'closed' : 'failed',
+            subscribed,
+            cause: error ?? new Error(`Realtime channel ${status}`),
+          });
+        },
+      });
+    });
+  }
+
+  private leaveChannel(): void {
+    const channel = this.channel;
+    if (!channel) return;
+    this.channel = undefined;
+    this.leaving = Promise.allSettled([this.leaving, channel.leave()]).then(
       () => undefined,
     );
   }
 
-  private async subscribe(scope: RunScope): Promise<void> {
-    // Before the first await: onActivity starts an attempt only from 'closed',
-    // and the activity monitor can fire twice for one return to the tab.
-    this.transition('subscribing');
-    this.startLeave();
-    await scope.track(this.pendingLeave);
-    if (!scope.alive) return;
-    try {
-      await scope.track(this.deps.transport.refreshAuth());
-    } catch (error) {
-      if (!scope.alive) return;
-      this.fail(scope, error);
-      return;
-    }
-    if (!scope.alive) return;
-    const userId = this.userId;
-    if (userId === undefined) return;
-
-    const slot: { handle?: RealtimeJoin } = {};
-    const whenCurrent = (run: () => void) => {
-      const deliver = () => {
-        if (
-          !scope.alive ||
-          slot.handle === undefined ||
-          this.current !== slot.handle
-        ) {
-          return;
-        }
-        run();
-      };
-      // join() can report status before it returns the handle.
-      if (slot.handle === undefined) {
-        queueMicrotask(deliver);
-        return;
-      }
-      deliver();
-    };
-    const joined = this.deps.transport.join(`wallet:${userId}`, {
-      onBroadcast: (event, payload) => {
-        whenCurrent(() => {
-          this.onBroadcast(scope, event, payload);
-        });
-      },
-      onStatus: (status, error) => {
-        whenCurrent(() => {
-          this.onStatus(scope, status, error);
-        });
-      },
-    });
-    slot.handle = joined;
-    this.current = joined;
-  }
-
-  private fail(scope: RunScope, cause: unknown): void {
-    if (!scope.alive) return;
-    if (!this.deps.activity.isActive() && !this.inRetryCycle) {
-      this.startLeave();
-      this.transition('closed');
-      return;
-    }
-    this.inRetryCycle = true;
-    void this.retry(scope, cause);
-  }
-
-  private onStatus(
+  private async emitWalletEvent(
     scope: RunScope,
-    status: REALTIME_SUBSCRIBE_STATES,
-    error?: Error,
-  ): void {
-    if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
-      this.inRetryCycle = false;
-      this.counter = 0;
-      this.transition('subscribed');
-      return;
-    }
-    if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
-      this.startLeave();
-      this.inRetryCycle = false;
-      this.transition('closed');
-      return;
-    }
-    if (
-      status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
-      status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
-    ) {
-      this.fail(scope, error ?? new Error(`Realtime channel ${status}`));
-    }
-  }
-
-  private async retry(scope: RunScope, cause: unknown): Promise<void> {
-    this.startLeave();
-    if (this.counter === RETRY_DELAYS_MS.length) {
-      this.inRetryCycle = false;
-      this.state = 'error';
-      this.deps.logger.debug('Realtime channel state changed', {
-        topic: this.topic(),
-        state: 'error',
-      });
-      this.deps.logger.error('Realtime channel failed', {
-        topic: this.topic(),
-        cause,
-      });
-      this.emitPublic('error');
-      return;
-    }
-    this.transition('reconnecting');
-    const delay = RETRY_DELAYS_MS[this.counter];
-    const attempt = this.counter + 1;
-    this.counter += 1;
-    this.deps.logger.debug('Realtime channel scheduled resubscribe attempt', {
-      topic: this.topic(),
-      attempt: `${attempt}/${RETRY_DELAYS_MS.length}`,
-      delay,
-    });
-    await scope.delay(delay);
-    if (!scope.alive) return;
-    void this.subscribe(scope);
-  }
-
-  private onActivity(scope: RunScope): void {
-    if (!scope.alive) return;
-    if (this.deps.activity.isActive() && this.state === 'closed') {
-      this.counter = 0;
-      void this.subscribe(scope);
-    }
-  }
-
-  private onBroadcast(scope: RunScope, event: string, payload: unknown): void {
-    if (!isBroadcast(event)) {
-      this.deps.logger.debug('Realtime event ignored', { event });
-      return;
-    }
-    void this.decodeAndEmit(scope, event, payload);
-  }
-
-  private async decodeAndEmit(
-    scope: RunScope,
-    event: BroadcastName,
-    payload: unknown,
+    name: string,
+    row: unknown,
   ): Promise<void> {
     try {
-      const emission = await scope.track(this.decode(scope, event, payload));
-      if (!scope.alive || emission === undefined) return;
-      this.deps.emit(emission);
+      const pending = this.deps.toWalletEvent(name, row);
+      if (!pending) {
+        this.deps.logger.debug('Realtime event ignored', { event: name });
+        return;
+      }
+      const message = await pending;
+      if (scope.alive) this.deps.emit(message);
     } catch (cause) {
-      if (!scope.alive) return;
-      this.deps.logger.error('Realtime event decode failed', {
-        event,
-        cause,
-      });
-    }
-  }
-
-  private async decode(
-    scope: RunScope,
-    event: BroadcastName,
-    payload: unknown,
-  ): Promise<FeedEmission | undefined> {
-    const ctx = await this.routeContext(scope, event);
-    if (!ctx || !scope.alive) return undefined;
-    return createRoutes(ctx)[event](payload);
-  }
-
-  private async routeContext(
-    scope: RunScope,
-    event: BroadcastName,
-  ): Promise<RealtimeRouteContext | undefined> {
-    const encryption = needsEncryption(event)
-      ? await this.deps.getEncryption()
-      : undefined;
-    if (!scope.alive) return undefined;
-    const accountRepository = needsAccountRepository(event)
-      ? await this.deps.getAccountRepository()
-      : undefined;
-    if (!scope.alive) return undefined;
-
-    const ctx = emptyRouteContext(this.deps.lightningAddressDomain);
-    const db = this.deps.db;
-    switch (event) {
-      case 'ACCOUNT_CREATED':
-      case 'ACCOUNT_UPDATED':
-        if (accountRepository) {
-          ctx.accountRepository = {
-            toAccount: (row) => accountRepository.toAccount(row),
-          };
-        }
-        break;
-      case 'TRANSACTION_CREATED':
-      case 'TRANSACTION_UPDATED':
-        if (encryption) {
-          ctx.transactionRepository = new TransactionRepository(db, encryption);
-        }
-        break;
-      case 'CASHU_RECEIVE_QUOTE_CREATED':
-      case 'CASHU_RECEIVE_QUOTE_UPDATED':
-        if (encryption && accountRepository) {
-          ctx.cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
-            db,
-            encryption,
-            accountRepository,
-          );
-        }
-        break;
-      case 'CASHU_RECEIVE_SWAP_CREATED':
-      case 'CASHU_RECEIVE_SWAP_UPDATED':
-        if (encryption && accountRepository) {
-          ctx.cashuReceiveSwapRepository = new CashuReceiveSwapRepository(
-            db,
-            encryption,
-            accountRepository,
-          );
-        }
-        break;
-      case 'CASHU_SEND_QUOTE_CREATED':
-      case 'CASHU_SEND_QUOTE_UPDATED':
-        if (encryption) {
-          ctx.cashuSendQuoteRepository = new CashuSendQuoteRepository(
-            db,
-            encryption,
-          );
-        }
-        break;
-      case 'CASHU_SEND_SWAP_CREATED':
-      case 'CASHU_SEND_SWAP_UPDATED':
-        if (encryption) {
-          ctx.cashuSendSwapRepository = new CashuSendSwapRepository(
-            db,
-            encryption,
-          );
-        }
-        break;
-      case 'SPARK_RECEIVE_QUOTE_CREATED':
-      case 'SPARK_RECEIVE_QUOTE_UPDATED':
-        if (encryption) {
-          ctx.sparkReceiveQuoteRepository = new SparkReceiveQuoteRepository(
-            db,
-            encryption,
-          );
-        }
-        break;
-      case 'SPARK_SEND_QUOTE_CREATED':
-      case 'SPARK_SEND_QUOTE_UPDATED':
-        if (encryption) {
-          ctx.sparkSendQuoteRepository = new SparkSendQuoteRepository(
-            db,
-            encryption,
-          );
-        }
-        break;
-      case 'CONTACT_CREATED':
-      case 'CONTACT_DELETED':
-      case 'USER_UPDATED':
-        break;
-      default: {
-        const unreachable: never = event;
-        throw new Error(`Unhandled realtime broadcast: ${unreachable}`);
+      if (scope.alive) {
+        this.deps.logger.error('Realtime event mapping failed', {
+          event: name,
+          cause,
+        });
       }
     }
-    return ctx;
   }
 
-  private transition(next: InternalState): void {
-    this.state = next;
-    if (this.userId !== undefined) {
-      this.deps.logger.debug('Realtime channel state changed', {
-        topic: this.topic(),
-        state: next,
-      });
-    }
-    if (next === 'subscribed') {
-      this.emitPublic('connected');
-      return;
-    }
-    const mapped: PublicConnection | undefined =
-      next === 'reconnecting' || next === 'closed'
-        ? 'reconnecting'
-        : next === 'error'
-          ? 'error'
-          : next === 'subscribing' && this.inRetryCycle
-            ? 'reconnecting'
-            : undefined;
-    if (mapped !== undefined && mapped !== this.lastEmitted) {
-      this.emitPublic(mapped);
-    }
-  }
-
-  private emitPublic(state: PublicConnection): void {
-    this.lastEmitted = state;
-    this.deps.emit({
-      event: 'connection.changed',
-      payload: { state },
+  /**
+   * Emits `connection.changed`. Every `connected` goes out, because the host
+   * refetches on each one; `reconnecting` and `error` go out only on a change.
+   */
+  private report(state: ConnectionState): void {
+    if (state === this.reported && state !== 'connected') return;
+    this.reported = state;
+    this.deps.logger.debug('Realtime channel state changed', {
+      topic: this.topic,
+      state,
     });
+    this.deps.emit({ event: 'connection.changed', payload: { state } });
   }
 }
 
 /**
- * Realtime change-feed for one SDK instance. The facade exposes `open`,
- * `close`, and `dispose`.
+ * Realtime change-feed for one SDK instance: one `wallet:<userId>` channel
+ * per session. The facade exposes `open`, `close`, and `dispose`.
  */
 export function createRealtimeFeed(deps: RealtimeFeedDeps): RealtimeFeed {
   const runtime = new RealtimeFeedRuntime(deps);

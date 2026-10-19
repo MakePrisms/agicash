@@ -34,6 +34,10 @@ import { createTransferApi } from '../transfer/transfer-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import {
+  createRowMappers,
+  createToWalletEvent,
+} from '../wallet/realtime-broadcasts';
+import {
   type RealtimeFeed,
   createRealtimeFeed,
   createSupabaseRealtimeTransport,
@@ -200,13 +204,16 @@ export class AgicashSdk implements Sdk {
         sessionToken.getToken,
       ),
       getSession: () => this.authService.getSession(),
-      db,
-      getEncryption: () => keys.getEncryption(),
-      getAccountRepository: accounts.getRepository,
-      lightningAddressDomain: config.lightningAddressDomain,
+      toWalletEvent: createToWalletEvent(
+        createRowMappers({
+          db,
+          getEncryption: () => keys.getEncryption(),
+          getAccountRepository: accounts.getRepository,
+          lightningAddressDomain: config.lightningAddressDomain,
+        }),
+      ),
       activity: config.activity,
-      emit: (emission) =>
-        events.emit(emission.event, emission.payload as never),
+      emit: (message) => events.emit(message.event, message.payload as never),
       logger: config.logger,
     });
     this.realtimeFeed = realtimeFeed;

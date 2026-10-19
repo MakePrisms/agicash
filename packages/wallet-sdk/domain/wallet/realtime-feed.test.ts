@@ -16,14 +16,17 @@ import { ContactRepository } from '../contacts/contact-repository';
 import type { ActivityMonitor, AuthSession, Logger } from '../sdk';
 import { ReadUserRepository } from '../user/user-repository';
 import {
-  type FeedEmission,
+  type RowMappers,
+  type WalletEventMessage,
+  createRowMappers,
+  createToWalletEvent,
+} from './realtime-broadcasts';
+import {
   RETRY_DELAYS_MS,
   type RealtimeFeed,
   type RealtimeJoin,
-  type RealtimeRouteContext,
   type RealtimeTransport,
   createRealtimeFeed,
-  createRoutes,
   createSupabaseRealtimeTransport,
 } from './realtime-feed';
 
@@ -121,7 +124,7 @@ type Trace =
   | { op: 'refreshAuth' }
   | { op: 'join'; topic: string }
   | { op: 'leave'; topic: string }
-  | { op: 'emit'; emission: FeedEmission };
+  | { op: 'emit'; emission: WalletEventMessage };
 
 type Listener = {
   onBroadcast(event: string, payload: unknown): void;
@@ -241,7 +244,7 @@ type Harness = {
   transport: ReturnType<typeof createTransport>;
   clock: ReturnType<typeof createManualClock>;
   activity: ReturnType<typeof createActivity>;
-  emissions: FeedEmission[];
+  emissions: WalletEventMessage[];
   trace: Trace[];
   debugLog: Array<{ message: string; meta: unknown }>;
   errorLog: Array<{ message: string; meta: unknown }>;
@@ -268,7 +271,7 @@ function createHarness(options?: {
   if (options?.refreshAuth) {
     transport.refreshAuthImpl = options.refreshAuth;
   }
-  const emissions: FeedEmission[] = [];
+  const emissions: WalletEventMessage[] = [];
   const debugLog: Array<{ message: string; meta: unknown }> = [];
   const errorLog: Array<{ message: string; meta: unknown }> = [];
   const logger: Logger = {
@@ -286,13 +289,17 @@ function createHarness(options?: {
   const feed = createRealtimeFeed({
     transport,
     getSession: () => session,
-    db: {} as AgicashDb,
-    getEncryption: async () => ({}) as Encryption,
-    getAccountRepository: async () => {
-      accountRepositoryRequests += 1;
-      return { toAccount } as AccountRepository;
-    },
-    lightningAddressDomain: options?.domain ?? DOMAIN,
+    toWalletEvent: createToWalletEvent(
+      createRowMappers({
+        db: {} as AgicashDb,
+        getEncryption: async () => ({}) as Encryption,
+        getAccountRepository: async () => {
+          accountRepositoryRequests += 1;
+          return { toAccount } as AccountRepository;
+        },
+        lightningAddressDomain: options?.domain ?? DOMAIN,
+      }),
+    ),
     activity: activity.activity,
     emit: (emission) => {
       emissions.push(emission);
@@ -326,7 +333,7 @@ function connectionStates(
   );
 }
 
-function domainEvents(h: Harness): FeedEmission[] {
+function domainEvents(h: Harness): WalletEventMessage[] {
   return h.emissions.filter(
     (emission) => emission.event !== 'connection.changed',
   );
@@ -405,21 +412,26 @@ describe('createRealtimeFeed', () => {
         return { tag: name };
       };
     };
-    const routes = createRoutes({
-      accountRepository: { toAccount: tag('account') },
-      transactionRepository: { toTransaction: tag('transaction') },
-      cashuReceiveQuoteRepository: { toQuote: tag('cashu-receive-quote') },
-      cashuReceiveSwapRepository: { toReceiveSwap: tag('cashu-receive-swap') },
-      cashuSendQuoteRepository: { toQuote: tag('cashu-send-quote') },
-      cashuSendSwapRepository: { toSwap: tag('cashu-send-swap') },
-      sparkReceiveQuoteRepository: { toQuote: tag('spark-receive-quote') },
-      sparkSendQuoteRepository: { toQuote: tag('spark-send-quote') },
-      lightningAddressDomain: DOMAIN,
-    } as unknown as RealtimeRouteContext);
+    const toWalletEvent = createToWalletEvent({
+      ...createRowMappers({
+        db: {} as AgicashDb,
+        getEncryption: async () => ({}) as Encryption,
+        getAccountRepository: async () => ({}) as AccountRepository,
+        lightningAddressDomain: DOMAIN,
+      }),
+      toAccount: tag('account'),
+      toTransaction: tag('transaction'),
+      toCashuReceiveQuote: tag('cashu-receive-quote'),
+      toCashuReceiveSwap: tag('cashu-receive-swap'),
+      toCashuSendQuote: tag('cashu-send-quote'),
+      toCashuSendSwap: tag('cashu-send-swap'),
+      toSparkReceiveQuote: tag('spark-receive-quote'),
+      toSparkSendQuote: tag('spark-send-quote'),
+    } as unknown as RowMappers);
 
     const cases: Array<{
-      broadcast: keyof typeof routes;
-      event: FeedEmission['event'];
+      broadcast: string;
+      event: WalletEventMessage['event'];
       key: string;
       tag: string;
       row: unknown;
@@ -541,21 +553,23 @@ describe('createRealtimeFeed', () => {
       },
     ];
 
-    expect(Object.keys(routes)).toHaveLength(19);
+    expect(toWalletEvent('FOO', {})).toBeUndefined();
+    expect(toWalletEvent('constructor', {})).toBeUndefined();
 
     for (const row of cases) {
-      const emission = await routes[row.broadcast](row.row);
+      const emission = await toWalletEvent(row.broadcast, row.row);
       expect(emission).toEqual({
         event: row.event,
         payload: { [row.key]: { tag: row.tag } },
-      } as unknown as FeedEmission);
+      } as unknown as WalletEventMessage);
       expect(seen.get(row.tag)).toEqual(row.row);
     }
 
     const updated = cases.find(
       (row) => row.broadcast === 'TRANSACTION_UPDATED',
     );
-    const updatedEmission = await routes.TRANSACTION_UPDATED(
+    const updatedEmission = await toWalletEvent(
+      'TRANSACTION_UPDATED',
       updated?.row ?? {},
     );
     expect(JSON.stringify(updatedEmission)).not.toContain(
@@ -563,8 +577,8 @@ describe('createRealtimeFeed', () => {
     );
     expect(seen.get('transaction')).toEqual(updated?.row);
 
-    const createdContact = await routes.CONTACT_CREATED(contactRow);
-    const deletedContact = await routes.CONTACT_DELETED(contactRow);
+    const createdContact = await toWalletEvent('CONTACT_CREATED', contactRow);
+    const deletedContact = await toWalletEvent('CONTACT_DELETED', contactRow);
     expect(createdContact).toEqual({
       event: 'contact.created',
       payload: {
@@ -584,10 +598,10 @@ describe('createRealtimeFeed', () => {
       },
     });
     expect(
-      (deletedContact.payload as { contact: { lud16: string } }).contact.lud16,
+      (deletedContact?.payload as { contact: { lud16: string } }).contact.lud16,
     ).toBe(`ada@${DOMAIN}`);
 
-    const updatedUser = await routes.USER_UPDATED(userRow);
+    const updatedUser = await toWalletEvent('USER_UPDATED', userRow);
     expect(updatedUser).toEqual({
       event: 'user.updated',
       payload: {
@@ -667,14 +681,9 @@ describe('createRealtimeFeed', () => {
     }
 
     const failures = h.errorLog.filter(
-      (entry) => entry.message === 'Realtime event decode failed',
+      (entry) => entry.message === 'Realtime event mapping failed',
     );
     expect(failures.length + domainEvents(h).length).toBe(names.length);
-    for (const failure of failures) {
-      const { cause } = failure.meta as { cause: unknown };
-      const message = cause instanceof Error ? cause.message : String(cause);
-      expect(message.startsWith('Unused realtime mapper')).toBe(false);
-    }
     expect(requestedFor).toEqual([
       'ACCOUNT_CREATED',
       'ACCOUNT_UPDATED',
@@ -703,7 +712,7 @@ describe('createRealtimeFeed', () => {
   });
 
   it('d. logs a rejecting mapper and leaves the feed state unchanged', async () => {
-    const cause = new Error('decode-broke');
+    const cause = new Error('mapper-broke');
     let calls = 0;
     const h = createHarness({
       toAccount: () => {
@@ -722,7 +731,7 @@ describe('createRealtimeFeed', () => {
     expect(calls).toBe(1);
     expect(h.errorLog).toEqual([
       {
-        message: 'Realtime event decode failed',
+        message: 'Realtime event mapping failed',
         meta: { event: 'ACCOUNT_CREATED', cause },
       },
     ]);
@@ -1017,11 +1026,11 @@ describe('createRealtimeFeed', () => {
     expect(h.trace.at(-1)).toEqual({ op: 'join', topic: `wallet:${USER_A}` });
   });
 
-  it('m. fences an in-flight decode on close and ignores the old join', async () => {
+  it('m. fences an in-flight mapping on close and ignores the old join', async () => {
     let called = false;
-    let resolveDecode: (value: unknown) => void = () => undefined;
+    let resolveMapping: (value: unknown) => void = () => undefined;
     const pending = new Promise((resolve) => {
-      resolveDecode = resolve;
+      resolveMapping = resolve;
     });
     const h = createHarness({
       toAccount: () => {
@@ -1045,7 +1054,7 @@ describe('createRealtimeFeed', () => {
     old.fire(REALTIME_SUBSCRIBE_STATES.TIMED_OUT, new Error('down'));
     old.broadcast('ACCOUNT_UPDATED', { n: 2 });
     await flush();
-    resolveDecode({ tag: 'late-account' });
+    resolveMapping({ tag: 'late-account' });
     await flush();
 
     expect(h.emissions).toHaveLength(emissions);
@@ -1054,11 +1063,11 @@ describe('createRealtimeFeed', () => {
     expect(domainEvents(h)).toEqual([]);
   });
 
-  it('n. drops a decode from the previous user after an identity change', async () => {
+  it('n. drops a mapping from the previous user after an identity change', async () => {
     let called = false;
-    let resolveDecode: (value: unknown) => void = () => undefined;
+    let resolveMapping: (value: unknown) => void = () => undefined;
     const pending = new Promise((resolve) => {
-      resolveDecode = resolve;
+      resolveMapping = resolve;
     });
     const h = createHarness({
       userId: USER_A,
@@ -1084,7 +1093,7 @@ describe('createRealtimeFeed', () => {
     h.transport.current().fire(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
     expect(connectionStates(h).at(-1)).toBe('connected');
 
-    resolveDecode({ tag: 'from-a' });
+    resolveMapping({ tag: 'from-a' });
     await flush();
 
     expect(domainEvents(h)).toEqual([]);
@@ -1440,10 +1449,7 @@ describe('createSupabaseRealtimeTransport', () => {
         async () => 'session-jwt',
       ),
       getSession: () => loggedIn(USER_A),
-      db: {} as AgicashDb,
-      getEncryption: async () => ({}) as Encryption,
-      getAccountRepository: async () => ({}) as AccountRepository,
-      lightningAddressDomain: DOMAIN,
+      toWalletEvent: () => undefined,
       activity: createActivity(true).activity,
       emit: (emission) => {
         if (emission.event === 'connection.changed') {
