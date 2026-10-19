@@ -2066,3 +2066,80 @@ so a paused retry waits for focus **and** online. X7 and X8 stand as
 written; C.10 stands with the O1 re-arm. A mutation's first attempt
 (`canStart`) needs only online.
 
+
+## Integration and code-review corrections (2026-10-19)
+
+Two code reviews of the implemented slice (one READY-WITH-FIXES with no
+critical finding, one NOT READY with one critical finding that the other
+review also rated important) and the orchestrator's integration pass led
+to the changes below. Where this section and older text disagree, this
+section describes the merged code.
+
+**Integration fixes (orchestrator):**
+
+- Working-set tombstones live for the whole stint. They are no longer
+  cleared after a reload, so a late echo of an earlier version cannot
+  re-add a finished item (test l2).
+- A failing PAID re-check in the melt tracker is logged
+  (`'Error handling melt quote update'`) instead of becoming an unhandled
+  rejection, which a headless host treats as fatal (test c2).
+- A saga logs `'Failed to load accounts for task processing'` when its
+  sync cannot read the stint accounts, instead of failing silently.
+- Commit order follows delivery order, not the Task numbers: 0, 1, 3, 2,
+  6, 4, 5, 7. Every commit passes the gates on its own. The three account
+  hooks that only processors used are deleted in the Task 5 commit, the
+  last flow to land.
+- O2 step 3c is not reachable locally: for a token from a non-test mint,
+  the claim page offers only the spark account or the token's own mint as
+  the destination, because test mints cannot receive from lightning. The
+  cashu CASHU_TOKEN path stays with unit tests and the maintainer live
+  gate. The spark CASHU_TOKEN melt path ran locally (smoke below).
+
+**Code-review fixes:**
+
+- **A stint runs only while the host is active** (review R2). An inactive
+  instance cancels its stint at once and begins a new one on its next
+  active `true` verdict. `state` stays as before, so 18.1 test (e) holds.
+  This is the 18.1 rule ("a stopped or inactive saga is cancelled") and it
+  closes the two-leader window in which a hidden former leader and the new
+  leader both act on one item (for a spark send, that window reaches the
+  F1 defect). **Named delta:** master kept processing in a hidden leader
+  tab until its lease was taken; the SDK stops at the first inactive
+  signal and resumes from the database on activation.
+- **A failed expiry check re-arms** (both reviews R1). The timer token is
+  dropped so the next sync re-arms it, and the saga gives up, so the next
+  activation, reconnect or retry tick resets its trackers.
+- **Tracker failures give up too** (R5): the melt `onUpdate` failure and
+  both expiry failures call the saga's `onGiveUp`.
+- **A give-up is retried within a minute in any host** (R7): every saga
+  also re-arms on a 60 s stint interval, and every reset ends with a sync
+  (R6), so a reset whose reload fails still rebuilds from the held items.
+- **Spark initial checks** run again on every activation and reconnect
+  (R3), start without waiting for the Breez listener, and still run when
+  `addEventListener` rejects; a failed registration is retried at the next
+  sync (grok R2). The spark send registration logs
+  `'Failed to add Spark event listener'` and no longer aborts the sync.
+- **Reconcile** lets a newer loaded row win over an older in-flight apply,
+  and schedules one confirming load when it keeps an in-flight item the
+  load omitted (grok R3).
+- **Subscription managers** ignore a superseded or cleared entry after
+  their awaits and undo a subscription that finishes after
+  `unsubscribeAll()`, so an O1 reset cannot be defeated by a late write
+  and no socket subscription outlives its stint (R4).
+- Smaller: `beginStint` failures are logged and retried on the next
+  verdict (R9); a cashu send quote whose account is missing or offline is
+  skipped silently, as master's filter did (R10); an initiate on a send
+  quote that is no longer UNPAID returns without retrying (grok R4); a
+  liveness check before each mint-quote poll request (R12); the spark
+  receive check epoch (R14); test (r) now proves the reset (R13).
+- **Transaction refetch on completion** moves into the trackers that
+  navigate (`useTrackCashuReceiveQuote` on COMPLETED,
+  `useTrackSparkReceiveQuote` on PAID), so it runs however the tracked
+  quote reached that state (R8). The `.updated` handlers go back to the
+  version-gated `updateIfExists` alone.
+
+**Checked and kept:** the reviewers' open question on lazy session keys
+in `createTaskSagas` (a cross-user key read in a `completeReceive` that
+outlives sign-out). The private key and xpub reads happen before the mint
+request and derive from the quote's own locking path, so a read for a
+different session makes the mint reject the request; no proof is lost.
