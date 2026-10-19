@@ -3,7 +3,6 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { sdk } from '~/features/shared/sdk.client';
 import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
-import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
 import { useUser } from '../user/user-hooks';
 
 const SERVER_SNAPSHOT: { state: TaskProcessorState; error?: SdkError } = {
@@ -81,6 +80,5 @@ export function useTaskProcessor(): {
 export const TaskProcessor = () => {
   useProcessCashuSendQuoteTasks();
   useProcessSparkReceiveQuoteTasks();
-  useProcessSparkSendQuoteTasks();
   return null;
 };

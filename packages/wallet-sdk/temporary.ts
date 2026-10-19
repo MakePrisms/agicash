@@ -127,8 +127,6 @@ export { CashuSendSwapSchema } from './domain/send/cashu-send-swap';
 export { CashuSendSwapRepository } from './domain/send/cashu-send-swap-repository';
 export { CashuSendSwapService } from './domain/send/cashu-send-swap-service';
 export { SparkSendQuoteSchema } from './domain/send/spark-send-quote';
-export { SparkSendQuoteRepository } from './domain/send/spark-send-quote-repository';
-export { SparkSendQuoteService } from './domain/send/spark-send-quote-service';
 export { toDecryptedCashuProofs } from './domain/send/utils';
 export { resolveSendDestination } from './domain/send/resolve-destination';
 export {

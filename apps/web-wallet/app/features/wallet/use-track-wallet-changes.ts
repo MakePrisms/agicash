@@ -28,10 +28,6 @@ import {
   useCashuSendSwapChangeHandlers,
 } from '../send/cashu-send-swap-hooks';
 import {
-  useSparkSendQuoteChangeHandlers,
-  useUnresolvedSparkSendQuotesCache,
-} from '../send/spark-send-quote-hooks';
-import {
   useTransactionChangeHandlers,
   useTransactionsCache,
 } from '../transactions/transaction-hooks';
@@ -67,7 +63,9 @@ type SagaOnlyEvent =
   | 'cashu-receive-swap.created'
   | 'cashu-receive-swap.updated'
   | 'cashu-receive-quote.created'
-  | 'cashu-send-swap.created';
+  | 'cashu-send-swap.created'
+  | 'spark-send-quote.created'
+  | 'spark-send-quote.updated';
 
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
@@ -77,7 +75,6 @@ export const useTrackWalletChanges = () => {
   const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
   const contactChangeHandlers = useContactChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
-  const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
   const userChangeHandlers = useUserChangeHandlers();
 
   const accountsCache = useAccountsCache();
@@ -88,7 +85,6 @@ export const useTrackWalletChanges = () => {
   const contactsCache = useContactsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
-  const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
   const userCache = useUserCache();
 
   const handlers = {
@@ -99,7 +95,6 @@ export const useTrackWalletChanges = () => {
     ...cashuSendSwapChangeHandlers,
     ...contactChangeHandlers,
     ...sparkReceiveQuoteChangeHandlers,
-    ...sparkSendQuoteChangeHandlers,
     ...userChangeHandlers,
   } satisfies WalletChangeHandlers<Exclude<FeedEvent, SagaOnlyEvent>>;
   const handlersRef = useLatest(handlers);
@@ -115,7 +110,6 @@ export const useTrackWalletChanges = () => {
     contactsCache.invalidate();
     sparkReceiveQuoteCache.invalidate();
     pendingSparkReceiveQuotesCache.invalidate();
-    unresolvedSparkSendQuotesCache.invalidate();
     userCache.invalidate();
   });
   const [failed, setFailed] = useState(false);

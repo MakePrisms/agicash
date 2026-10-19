@@ -12,6 +12,9 @@ import type { SessionKeys } from '../sdk/session-keys';
 import { CashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { createCashuSendSwapSaga } from '../send/cashu-send-swap-saga';
 import { CashuSendSwapService } from '../send/cashu-send-swap-service';
+import { SparkSendQuoteRepository } from '../send/spark-send-quote-repository';
+import { createSparkSendQuoteSaga } from '../send/spark-send-quote-saga';
+import { SparkSendQuoteService } from '../send/spark-send-quote-service';
 import type { TaskSaga } from './task-saga';
 
 export type TaskSagasDeps = {
@@ -50,6 +53,12 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
   const getSendSwapService = async (): Promise<CashuSendSwapService> =>
     new CashuSendSwapService(await getSendSwapRepository(), await getService());
 
+  const getSparkSendRepository = async (): Promise<SparkSendQuoteRepository> =>
+    new SparkSendQuoteRepository(deps.db, await deps.keys.getEncryption());
+
+  const getSparkSendService = async (): Promise<SparkSendQuoteService> =>
+    new SparkSendQuoteService(await getSparkSendRepository());
+
   const getReceiveQuoteRepository =
     async (): Promise<CashuReceiveQuoteRepository> => {
       const encryption = await deps.keys.getEncryption();
@@ -79,6 +88,10 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
     createCashuReceiveQuoteSaga({
       getRepository: getReceiveQuoteRepository,
       getService: getReceiveQuoteService,
+    }),
+    createSparkSendQuoteSaga({
+      getRepository: getSparkSendRepository,
+      getService: getSparkSendService,
     }),
   ];
 }
