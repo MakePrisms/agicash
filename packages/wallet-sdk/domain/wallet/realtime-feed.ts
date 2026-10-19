@@ -1,3 +1,4 @@
+import { delay as sleep } from '@agicash/utils';
 import {
   REALTIME_SUBSCRIBE_STATES,
   type RealtimeClient,
@@ -44,12 +45,6 @@ export type RealtimeTransport = {
     },
   ): RealtimeJoin;
 };
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 /**
  * Adapts a Supabase `RealtimeClient` to the feed's transport seam.
