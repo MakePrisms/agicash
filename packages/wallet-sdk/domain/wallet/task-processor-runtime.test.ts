@@ -15,11 +15,14 @@ import type {
   SdkConfig,
   TaskProcessorState,
 } from '../sdk';
+import { WalletEventEmitter } from '../sdk/events';
 import { AgicashSdk } from '../sdk/sdk';
 import {
   type TaskProcessorDeps,
   createTaskProcessor,
 } from './task-processor-runtime';
+import type { SagaStint, TaskSaga } from './task-saga';
+import { deferred } from './task-saga-test-kit';
 
 const CLIENT_A = '00000000-0000-4000-8000-000000000001';
 const CLIENT_B = '00000000-0000-4000-8000-000000000002';
@@ -95,16 +98,14 @@ function createActivity(initial: { active: boolean }): {
   notify: () => void;
 } {
   let active = initial.active;
-  let listener: (() => void) | undefined;
+  const listeners = new Set<() => void>();
   return {
     activity: {
       isActive: () => active,
       subscribe: (onChange) => {
-        listener = onChange;
+        listeners.add(onChange);
         return () => {
-          if (listener === onChange) {
-            listener = undefined;
-          }
+          listeners.delete(onChange);
         };
       },
     },
@@ -112,7 +113,9 @@ function createActivity(initial: { active: boolean }): {
       active = value;
     },
     notify: () => {
-      listener?.();
+      for (const listener of [...listeners]) {
+        listener();
+      }
     },
   };
 }
@@ -124,12 +127,14 @@ function createHarness(options?: {
   db?: AgicashDb;
   clock?: boolean;
   randomUUID?: boolean;
+  sagas?: TaskSaga[];
 }): {
   processor: ReturnType<typeof createTaskProcessor>;
   calls: LeadCall[];
   emits: Emit[];
   debugLog: Array<{ message: string; meta: unknown }>;
   warnLog: Array<{ message: string; meta: unknown }>;
+  errorLog: Array<{ message: string; meta: unknown }>;
   clock: ReturnType<typeof createRecordingClock> | undefined;
   uuidCount: () => number;
   setSession: (session: AuthSession) => void;
@@ -138,6 +143,8 @@ function createHarness(options?: {
   const emits: Emit[] = [];
   const debugLog: Array<{ message: string; meta: unknown }> = [];
   const warnLog: Array<{ message: string; meta: unknown }> = [];
+  const errorLog: Array<{ message: string; meta: unknown }> = [];
+  const walletEvents = new WalletEventEmitter(nullLogger);
   let session = options?.session ?? loggedIn;
   let uuidCount = 0;
   const uuids = [CLIENT_A, CLIENT_B];
@@ -166,7 +173,9 @@ function createHarness(options?: {
     warn: (message, meta) => {
       warnLog.push({ message, meta });
     },
-    error: () => undefined,
+    error: (message, meta) => {
+      errorLog.push({ message, meta });
+    },
   };
   const deps: TaskProcessorDeps = {
     db: options?.db ?? ({} as AgicashDb),
@@ -178,6 +187,13 @@ function createHarness(options?: {
     logger,
     takeLead,
     clock,
+    walletEvents: {
+      on: (event, handler) => walletEvents.on(event, handler),
+      emit: (message) =>
+        walletEvents.emit(message.event, message.payload as never),
+    },
+    loadAccounts: async () => [],
+    sagas: options?.sagas ?? [],
     randomUUID:
       options?.randomUUID === false
         ? undefined
@@ -193,6 +209,7 @@ function createHarness(options?: {
     emits,
     debugLog,
     warnLog,
+    errorLog,
     clock,
     uuidCount: () => uuidCount,
     setSession: (next) => {
@@ -564,6 +581,12 @@ describe('createTaskProcessor', () => {
         return uuidCount === 1 ? CLIENT_A : CLIENT_B;
       },
       clock,
+      walletEvents: {
+        on: () => () => undefined,
+        emit: () => undefined,
+      },
+      loadAccounts: async () => [],
+      sagas: [],
     });
     processor.start();
     expect(rpcCalls).toEqual([
@@ -617,5 +640,312 @@ describe('createTaskProcessor', () => {
         await sdk.dispose();
       }
     }
+  });
+
+  it('(s) starts one stint when this instance takes the lead and a new one after yielding', async () => {
+    const started: SagaStint[] = [];
+    const record = (name: string): TaskSaga => ({
+      name,
+      start(stint) {
+        started.push(stint);
+      },
+    });
+    const harness = createHarness({
+      sagas: [record('one'), record('two')],
+    });
+    await becomeLeader(harness);
+    expect(started).toHaveLength(2);
+    expect(started[0]).toBe(started[1]);
+    expect(started[0]?.userId).toBe('user-1');
+    expect(started[0]?.scope.alive).toBe(true);
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(started).toHaveLength(2);
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(3);
+    harness.calls[2]?.resolve(false);
+    await flush();
+    expect(started[0]?.scope.alive).toBe(false);
+    expect(started[0]?.scope.signal.aborted).toBe(true);
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(4);
+    harness.calls[3]?.resolve(true);
+    await flush();
+    expect(started).toHaveLength(4);
+    expect(started[2]).toBe(started[3]);
+    expect(started[2]).not.toBe(started[0]);
+    expect(started[2]?.scope.alive).toBe(true);
+  });
+
+  it('(t) stop joins the saga checkpoint and cancels its single 5000 timer', async () => {
+    const gate = deferred<void>();
+    const harness = createHarness({
+      sagas: [
+        {
+          name: 'hung',
+          start(stint) {
+            stint.scope.track(gate.promise);
+          },
+        },
+      ],
+    });
+    await becomeLeader(harness);
+    const stopPromise = harness.processor.stop();
+    let settled = false;
+    void stopPromise.then(() => {
+      settled = true;
+    });
+    await flush();
+    expect(settled).toBe(false);
+    const timers = (harness.clock?.timeouts ?? []).filter(
+      (timer) => timer.ms === 5000,
+    );
+    expect(timers).toHaveLength(1);
+    expect(timers[0]?.cancelled).toBe(false);
+    gate.resolve();
+    await flush();
+    await stopPromise;
+    expect(settled).toBe(true);
+    expect(timers[0]?.cancelled).toBe(true);
+  });
+
+  it('(u) stop resolves when its single 5000 timer fires', async () => {
+    const harness = createHarness({
+      sagas: [
+        {
+          name: 'hung',
+          start(stint) {
+            stint.scope.track(new Promise(() => undefined));
+          },
+        },
+      ],
+    });
+    await becomeLeader(harness);
+    const stopPromise = harness.processor.stop();
+    let settled = false;
+    void stopPromise.then(() => {
+      settled = true;
+    });
+    await flush();
+    expect(settled).toBe(false);
+    const timers = (harness.clock?.timeouts ?? []).filter(
+      (timer) => timer.ms === 5000 && !timer.cancelled,
+    );
+    expect(timers).toHaveLength(1);
+    timers[0]?.callback();
+    await stopPromise;
+    expect(settled).toBe(true);
+    expect(harness.processor.state).toBe('stopped');
+  });
+
+  it('(t2) stop waits on both the lead checkpoint and the saga checkpoint', async () => {
+    const gate = deferred<void>();
+    const harness = createHarness({
+      sagas: [
+        {
+          name: 'hung',
+          start(stint) {
+            stint.scope.track(gate.promise);
+          },
+        },
+      ],
+    });
+    await becomeLeader(harness);
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    const stopPromise = harness.processor.stop();
+    let settled = false;
+    void stopPromise.then(() => {
+      settled = true;
+    });
+    await flush();
+    expect(settled).toBe(false);
+    const timers = (harness.clock?.timeouts ?? []).filter(
+      (timer) => timer.ms === 5000 && !timer.cancelled,
+    );
+    expect(timers).toHaveLength(2);
+    timers[0]?.callback();
+    await flush();
+    expect(settled).toBe(false);
+    timers[1]?.callback();
+    await stopPromise;
+    expect(settled).toBe(true);
+    expect(harness.processor.state).toBe('stopped');
+  });
+
+  it('(v) logs a saga that throws on start and still starts the next one', async () => {
+    const cause = new Error('saga boom');
+    let secondStarted = false;
+    const harness = createHarness({
+      sagas: [
+        {
+          name: 'first',
+          start() {
+            throw cause;
+          },
+        },
+        {
+          name: 'second',
+          start() {
+            secondStarted = true;
+          },
+        },
+      ],
+    });
+    await becomeLeader(harness);
+    expect(secondStarted).toBe(true);
+    expect(harness.errorLog).toEqual([
+      {
+        message: 'Task saga failed to start',
+        meta: { saga: 'first', cause },
+      },
+    ]);
+    expect(
+      (harness.errorLog[0]?.meta as { cause: unknown } | undefined)?.cause,
+    ).toBe(cause);
+  });
+
+  it('(w) does not start a stint when the session is logged out before the verdict', async () => {
+    let starts = 0;
+    const harness = createHarness({
+      sagas: [
+        {
+          name: 'only',
+          start() {
+            starts += 1;
+          },
+        },
+      ],
+    });
+    harness.processor.start();
+    expect(harness.calls).toHaveLength(1);
+    harness.setSession(loggedOut);
+    harness.calls[0]?.resolve(true);
+    await flush();
+    expect(starts).toBe(0);
+    expect(harness.processor.state).toBe('leader');
+  });
+
+  it('(x) ends the stint of an inactive leader and starts a new one on reactivation', async () => {
+    const started: SagaStint[] = [];
+    const activity = createActivity({ active: true });
+    const harness = createHarness({
+      activity: activity.activity,
+      sagas: [
+        {
+          name: 'only',
+          start(stint) {
+            started.push(stint);
+          },
+        },
+      ],
+    });
+    await becomeLeader(harness);
+    expect(started).toHaveLength(1);
+    const first = started[0];
+    expect(first?.scope.alive).toBe(true);
+    activity.setActive(false);
+    activity.notify();
+    await flush();
+    expect(first?.scope.alive).toBe(false);
+    expect(first?.scope.signal.aborted).toBe(true);
+    expect(harness.processor.state).toBe('leader');
+    expect(harness.calls).toHaveLength(1);
+    activity.setActive(true);
+    activity.notify();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(started).toHaveLength(2);
+    expect(started[1]).not.toBe(first);
+    expect(started[1]?.scope.alive).toBe(true);
+    expect(harness.processor.state).toBe('leader');
+  });
+
+  it('(y) starts no stint when a bid resolves true after the host went inactive', async () => {
+    let starts = 0;
+    const activity = createActivity({ active: true });
+    const harness = createHarness({
+      activity: activity.activity,
+      sagas: [
+        {
+          name: 'only',
+          start() {
+            starts += 1;
+          },
+        },
+      ],
+    });
+    harness.processor.start();
+    expect(harness.calls).toHaveLength(1);
+    activity.setActive(false);
+    harness.calls[0]?.resolve(true);
+    await flush();
+    expect(starts).toBe(0);
+    expect(harness.processor.state).toBe('leader');
+    activity.setActive(true);
+    activity.notify();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(starts).toBe(1);
+  });
+
+  it('(z) logs a stint that fails to start and retries it on the next true verdict', async () => {
+    const cause = new Error('subscribe boom');
+    let failSubscribe = false;
+    let starts = 0;
+    const activity: ActivityMonitor = {
+      isActive: () => true,
+      subscribe: () => {
+        if (failSubscribe) {
+          throw cause;
+        }
+        return () => undefined;
+      },
+    };
+    const harness = createHarness({
+      activity,
+      sagas: [
+        {
+          name: 'only',
+          start() {
+            starts += 1;
+          },
+        },
+      ],
+    });
+    harness.processor.start();
+    expect(harness.calls).toHaveLength(1);
+    failSubscribe = true;
+    harness.calls[0]?.resolve(true);
+    await flush();
+    expect(harness.processor.state).toBe('leader');
+    expect(starts).toBe(0);
+    expect(harness.errorLog).toEqual([
+      {
+        message: 'Task saga failed to start',
+        meta: { saga: 'stint', cause },
+      },
+    ]);
+    expect(
+      (harness.errorLog[0]?.meta as { cause: unknown } | undefined)?.cause,
+    ).toBe(cause);
+    failSubscribe = false;
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(starts).toBe(1);
+    expect(harness.errorLog).toHaveLength(1);
   });
 });

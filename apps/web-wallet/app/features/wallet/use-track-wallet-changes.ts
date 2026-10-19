@@ -13,30 +13,15 @@ import {
 import {
   useCashuReceiveQuoteCache,
   useCashuReceiveQuoteChangeHandlers,
-  usePendingCashuReceiveQuotesCache,
 } from '../receive/cashu-receive-quote-hooks';
 import {
-  useCashuReceiveSwapChangeHandlers,
-  usePendingCashuReceiveSwapsCache,
-} from '../receive/cashu-receive-swap-hooks';
-import {
-  usePendingSparkReceiveQuotesCache,
   useSparkReceiveQuoteCache,
   useSparkReceiveQuoteChangeHandlers,
 } from '../receive/spark-receive-quote-hooks';
 import {
-  useCashuSendQuoteChangeHandlers,
-  useUnresolvedCashuSendQuotesCache,
-} from '../send/cashu-send-quote-hooks';
-import {
   useCashuSendSwapCache,
   useCashuSendSwapChangeHandlers,
-  useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
-import {
-  useSparkSendQuoteChangeHandlers,
-  useUnresolvedSparkSendQuotesCache,
-} from '../send/spark-send-quote-hooks';
 import {
   useTransactionChangeHandlers,
   useTransactionsCache,
@@ -48,64 +33,64 @@ export type WalletChangeHandlers<K extends keyof WalletEventMap> = {
   [E in K]: (payload: WalletEventMap[E]) => void;
 };
 
+type FeedEvent =
+  | 'user.updated'
+  | 'account.created'
+  | 'account.updated'
+  | 'contact.created'
+  | 'contact.deleted'
+  | 'transaction.created'
+  | 'transaction.updated'
+  | 'cashu-receive-quote.created'
+  | 'cashu-receive-quote.updated'
+  | 'cashu-receive-swap.created'
+  | 'cashu-receive-swap.updated'
+  | 'spark-receive-quote.created'
+  | 'spark-receive-quote.updated'
+  | 'cashu-send-quote.created'
+  | 'cashu-send-quote.updated'
+  | 'cashu-send-swap.created'
+  | 'cashu-send-swap.updated'
+  | 'spark-send-quote.created'
+  | 'spark-send-quote.updated';
+
+type SagaOnlyEvent =
+  | 'cashu-receive-swap.created'
+  | 'cashu-receive-swap.updated'
+  | 'cashu-receive-quote.created'
+  | 'cashu-send-swap.created'
+  | 'spark-send-quote.created'
+  | 'spark-send-quote.updated'
+  | 'cashu-send-quote.created'
+  | 'cashu-send-quote.updated'
+  | 'spark-receive-quote.created';
+
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
   const transactionChangeHandlers = useTransactionChangeHandlers();
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
-  const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
-  const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
   const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
   const contactChangeHandlers = useContactChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
-  const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
   const userChangeHandlers = useUserChangeHandlers();
 
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
-  const pendingCashuReceiveSwapsCache = usePendingCashuReceiveSwapsCache();
-  const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendSwapCache = useCashuSendSwapCache();
-  const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
-  const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
   const userCache = useUserCache();
 
   const handlers = {
     ...accountChangeHandlers,
     ...transactionChangeHandlers,
     ...cashuReceiveQuoteChangeHandlers,
-    ...cashuReceiveSwapChangeHandlers,
-    ...cashuSendQuoteChangeHandlers,
     ...cashuSendSwapChangeHandlers,
     ...contactChangeHandlers,
     ...sparkReceiveQuoteChangeHandlers,
-    ...sparkSendQuoteChangeHandlers,
     ...userChangeHandlers,
-  } satisfies WalletChangeHandlers<
-    | 'user.updated'
-    | 'account.created'
-    | 'account.updated'
-    | 'contact.created'
-    | 'contact.deleted'
-    | 'transaction.created'
-    | 'transaction.updated'
-    | 'cashu-receive-quote.created'
-    | 'cashu-receive-quote.updated'
-    | 'cashu-receive-swap.created'
-    | 'cashu-receive-swap.updated'
-    | 'spark-receive-quote.created'
-    | 'spark-receive-quote.updated'
-    | 'cashu-send-quote.created'
-    | 'cashu-send-quote.updated'
-    | 'cashu-send-swap.created'
-    | 'cashu-send-swap.updated'
-    | 'spark-send-quote.created'
-    | 'spark-send-quote.updated'
-  >;
+  } satisfies WalletChangeHandlers<Exclude<FeedEvent, SagaOnlyEvent>>;
   const handlersRef = useLatest(handlers);
   const onConnectedRef = useLatest(() => {
     // Makes sure that data is refetched to get the latest updates from the database.
@@ -114,15 +99,9 @@ export const useTrackWalletChanges = () => {
     accountsCache.invalidate();
     transactionsCache.invalidate();
     cashuReceiveQuoteCache.invalidate();
-    pendingCashuReceiveQuotesCache.invalidate();
-    pendingCashuReceiveSwapsCache.invalidate();
-    unresolvedCashuSendQuotesCache.invalidate();
     cashuSendSwapCache.invalidate();
-    unresolvedCashuSendSwapsCache.invalidate();
     contactsCache.invalidate();
     sparkReceiveQuoteCache.invalidate();
-    pendingSparkReceiveQuotesCache.invalidate();
-    unresolvedSparkSendQuotesCache.invalidate();
     userCache.invalidate();
   });
   const [failed, setFailed] = useState(false);

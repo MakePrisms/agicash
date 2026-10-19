@@ -58,7 +58,6 @@ export {
   getAllMintKeysets,
   getCashuPrivateKey,
   getCashuSeed,
-  getInitializedCashuWallet,
   getMintAuthProvider,
   getMintInfo,
   getTokenHash,
@@ -113,25 +112,18 @@ export {
   computeQuoteExpiry,
   getAmountAndFee,
 } from './domain/receive/spark-receive-quote-core';
-export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
-export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
 export { CashuReceiveQuoteRepository } from './domain/receive/cashu-receive-quote-repository';
-export { CashuReceiveQuoteService } from './domain/receive/cashu-receive-quote-service';
 export { CashuReceiveSwapRepository } from './domain/receive/cashu-receive-swap-repository';
 export { CashuReceiveSwapService } from './domain/receive/cashu-receive-swap-service';
 export { isClaimingToSameCashuAccount } from './domain/receive/receive-cashu-token-models';
 export { ReceiveCashuTokenService } from './domain/receive/receive-cashu-token-service';
 export { CashuSendQuoteSchema } from './domain/send/cashu-send-quote';
 export { CashuSendQuoteRepository } from './domain/send/cashu-send-quote-repository';
-export { CashuSendQuoteService } from './domain/send/cashu-send-quote-service';
 export { CashuSendSwapSchema } from './domain/send/cashu-send-swap';
 export { CashuSendSwapRepository } from './domain/send/cashu-send-swap-repository';
 export { CashuSendSwapService } from './domain/send/cashu-send-swap-service';
 export { SparkSendQuoteSchema } from './domain/send/spark-send-quote';
-export { SparkSendQuoteRepository } from './domain/send/spark-send-quote-repository';
-export { SparkSendQuoteService } from './domain/send/spark-send-quote-service';
 export { toDecryptedCashuProofs } from './domain/send/utils';
-export { ProofStateSubscriptionManager } from './domain/send/proof-state-subscription-manager';
 export { resolveSendDestination } from './domain/send/resolve-destination';
 export {
   validateBolt11,
