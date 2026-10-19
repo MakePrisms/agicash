@@ -171,13 +171,12 @@ class RealtimeFeedRuntime implements RealtimeFeed {
     this.close();
     this.topic = topic;
     const scope = this.scopes.renew();
-    scope.onCleanup(
-      this.deps.activity.subscribe(() => {
-        if (this.parked && this.deps.activity.isActive()) {
-          void this.run(scope, topic);
-        }
-      }),
-    );
+    const unsubscribeActivity = this.deps.activity.subscribe(() => {
+      if (this.parked && this.deps.activity.isActive()) {
+        void this.run(scope, topic);
+      }
+    });
+    scope.onCleanup(unsubscribeActivity);
     void this.run(scope, topic);
   }
 
