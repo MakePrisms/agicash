@@ -1,7 +1,6 @@
 import type { SdkError, TaskProcessorState } from '@agicash/wallet-sdk';
 import { useEffect, useSyncExternalStore } from 'react';
 import { sdk } from '~/features/shared/sdk.client';
-import { useProcessCashuReceiveQuoteTasks } from '../receive/cashu-receive-quote-hooks';
 import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
@@ -81,7 +80,6 @@ export function useTaskProcessor(): {
  * Should be used only by the user's lead client.
  */
 export const TaskProcessor = () => {
-  useProcessCashuReceiveQuoteTasks();
   useProcessCashuSendQuoteTasks();
   useProcessCashuSendSwapTasks();
   useProcessSparkReceiveQuoteTasks();

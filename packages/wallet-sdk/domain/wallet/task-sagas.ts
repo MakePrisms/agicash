@@ -1,5 +1,10 @@
 import type { AgicashDb } from '../../db/database';
+import { type CashuCryptography, getCashuPrivateKey } from '../../lib/cashu';
+import { deriveCashuXpub } from '../../lib/cryptography';
 import type { AccountRepository } from '../accounts/account-repository';
+import { CashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
+import { createCashuReceiveQuoteSaga } from '../receive/cashu-receive-quote-saga';
+import { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
 import { CashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
 import { createCashuReceiveSwapSaga } from '../receive/cashu-receive-swap-saga';
 import { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
@@ -16,6 +21,13 @@ export type TaskSagasDeps = {
  * The task-processing flows, in start order. SDK-internal: never exported from the package.
  */
 export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
+  const cryptography: CashuCryptography = {
+    getSeed: () => deps.keys.getCashuSeed(),
+    getXpub: async (path) =>
+      deriveCashuXpub(await deps.keys.getCashuSeed(), path),
+    getPrivateKey: getCashuPrivateKey,
+  };
+
   const getRepository = async (): Promise<CashuReceiveSwapRepository> => {
     const encryption = await deps.keys.getEncryption();
     const accountRepository = await deps.getAccountRepository();
@@ -29,10 +41,31 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
   const getService = async (): Promise<CashuReceiveSwapService> =>
     new CashuReceiveSwapService(await getRepository());
 
+  const getReceiveQuoteRepository =
+    async (): Promise<CashuReceiveQuoteRepository> => {
+      const encryption = await deps.keys.getEncryption();
+      const accountRepository = await deps.getAccountRepository();
+      return new CashuReceiveQuoteRepository(
+        deps.db,
+        encryption,
+        accountRepository,
+      );
+    };
+
+  const getReceiveQuoteService = async (): Promise<CashuReceiveQuoteService> =>
+    new CashuReceiveQuoteService(
+      cryptography,
+      await getReceiveQuoteRepository(),
+    );
+
   return [
     createCashuReceiveSwapSaga({
       getRepository,
       getService,
+    }),
+    createCashuReceiveQuoteSaga({
+      getRepository: getReceiveQuoteRepository,
+      getService: getReceiveQuoteService,
     }),
   ];
 }

@@ -116,7 +116,6 @@ export {
 export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
 export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
 export { CashuReceiveQuoteRepository } from './domain/receive/cashu-receive-quote-repository';
-export { CashuReceiveQuoteService } from './domain/receive/cashu-receive-quote-service';
 export { CashuReceiveSwapRepository } from './domain/receive/cashu-receive-swap-repository';
 export { CashuReceiveSwapService } from './domain/receive/cashu-receive-swap-service';
 export { isClaimingToSameCashuAccount } from './domain/receive/receive-cashu-token-models';

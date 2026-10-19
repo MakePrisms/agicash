@@ -1,6 +1,7 @@
 import { getCashuWallet } from '@agicash/cashu';
 import { isSubset } from '@agicash/utils';
 import type { MintQuoteBolt11Response } from '@cashu/cashu-ts';
+import type { Logger } from '../domain/sdk';
 
 type SubscriptionData = {
   ids: Set<string>;
@@ -10,6 +11,8 @@ type SubscriptionData = {
 
 export class MintQuoteSubscriptionManager {
   private subscriptions: Map<string, SubscriptionData> = new Map();
+
+  constructor(private readonly logger: Logger) {}
 
   /**
    * Subscribes to mint quote updates for the given mint URL and quotes.
@@ -39,7 +42,7 @@ export class MintQuoteSubscriptionManager {
           ...mintSubscription,
           onUpdate,
         });
-        console.debug(
+        this.logger.debug(
           'Mint quote updates subscription already exists for mint. Updated callback.',
           { mintUrl, quoteCount: quoteIds.length },
         );
@@ -49,7 +52,7 @@ export class MintQuoteSubscriptionManager {
         };
       }
 
-      console.debug('Unsubscribing from mint quote updates for mint', {
+      this.logger.debug('Unsubscribing from mint quote updates for mint', {
         mintUrl,
       });
       unsubscribe();
@@ -57,7 +60,7 @@ export class MintQuoteSubscriptionManager {
 
     const wallet = getCashuWallet(mintUrl);
 
-    console.debug('Subscribing to mint quote updates for mint', {
+    this.logger.debug('Subscribing to mint quote updates for mint', {
       mintUrl,
       quoteCount: quoteIds.length,
     });
@@ -73,7 +76,7 @@ export class MintQuoteSubscriptionManager {
       Array.from(ids),
       subscriptionCallback,
       (error) =>
-        console.error('Mint quote updates socket error', {
+        this.logger.error('Mint quote updates socket error', {
           cause: error,
         }),
     );
@@ -88,7 +91,7 @@ export class MintQuoteSubscriptionManager {
       const unsubscribe = await subscriptionPromise;
 
       wallet.mint.webSocketConnection?.onClose((event) => {
-        console.debug('Mint socket closed', { mintUrl, event });
+        this.logger.debug('Mint socket closed', { mintUrl, event });
         this.subscriptions.delete(mintUrl);
       });
 
@@ -99,6 +102,18 @@ export class MintQuoteSubscriptionManager {
     } catch (error) {
       this.subscriptions.delete(mintUrl);
       throw error;
+    }
+  }
+
+  /** Calls every stored unsubscribe and forgets every subscription. */
+  unsubscribeAll(): void {
+    const subscriptions = [...this.subscriptions.values()];
+    this.subscriptions.clear();
+    for (const subscription of subscriptions) {
+      subscription.subscriptionPromise.then(
+        (unsubscribe) => unsubscribe(),
+        () => undefined,
+      );
     }
   }
 }
