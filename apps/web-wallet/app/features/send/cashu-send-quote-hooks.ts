@@ -7,10 +7,6 @@ import type {
   DestinationDetails,
 } from '@agicash/wallet-sdk';
 import { SessionEndedError } from '@agicash/wallet-sdk';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendQuote,
-} from '@agicash/wallet-sdk/temporary';
 import {
   CashuSendQuoteRepository,
   CashuSendQuoteService,
@@ -40,6 +36,7 @@ import {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 export function useCashuSendQuoteRepository() {
   const encryption = useEncryption();
@@ -232,39 +229,23 @@ function usePendingMeltQuotes() {
 /**
  * Hook that returns a cashu send quote change handler.
  */
-export function useCashuSendQuoteChangeHandlers() {
+export function useCashuSendQuoteChangeHandlers(): WalletChangeHandlers<
+  'cashu-send-quote.created' | 'cashu-send-quote.updated'
+> {
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
 
-  return [
-    {
-      event: 'CASHU_SEND_QUOTE_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await cashuSendQuoteRepository.toQuote(payload);
-        unresolvedSendQuotesCache.add(quote);
-      },
+  return {
+    'cashu-send-quote.created': ({ quote }) => {
+      unresolvedSendQuotesCache.add(quote);
     },
-    {
-      event: 'CASHU_SEND_QUOTE_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await cashuSendQuoteRepository.toQuote(payload);
-
-        if (['UNPAID', 'PENDING'].includes(quote.state)) {
-          unresolvedSendQuotesCache.update(quote);
-        } else {
-          unresolvedSendQuotesCache.remove(quote);
-        }
-      },
+    'cashu-send-quote.updated': ({ quote }) => {
+      if (['UNPAID', 'PENDING'].includes(quote.state)) {
+        unresolvedSendQuotesCache.update(quote);
+      } else {
+        unresolvedSendQuotesCache.remove(quote);
+      }
     },
-  ];
+  };
 }
 
 export function useProcessCashuSendQuoteTasks() {

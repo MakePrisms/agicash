@@ -97,6 +97,14 @@ is **step 2 (cycle-break) before step 3 (move)**.
     1. move the shared runtime (task runner + leader-election lock + change-feed) into the SDK behind the contract; web calls `sdk.background.start/stop`;
     2. port each flow's processor into the SDK one at a time;
     3. web drops its realtime layer and subscribes to SDK events to keep its cache fresh.
+    - **Order: sub-slice 3 lands before sub-slice 2** (decided in the step-18.3
+      plan, `docs/superpowers/plans/2026-10-13-wallet-sdk-realtime-feed-slice.md`).
+      The web processors discover cross-client work only through the realtime
+      feed — the change handlers feed their pending/unresolved caches — so moving
+      the feed into the SDK first leaves the processors web-side and unchanged
+      (they read the same caches, now fed by SDK events), and the later processor
+      port lets each SDK saga consume the SDK feed directly instead of a feed
+      still owned by React.
     - **Split the receive/send repos + services along the host/processing line**
       (decided in the #1176 review discussion): the background-only verbs
       (`processPayment`/`completeReceive`/`expire`/`fail`/`markMeltInitiated` and

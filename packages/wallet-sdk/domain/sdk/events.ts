@@ -65,7 +65,8 @@ export type WalletEventMap = {
    * streams row changes, not the auth or network connection. `connected` fires
    * on every transition into the connected state (including the first) and is
    * the invalidate-all / refetch-after-a-gap signal; `error` is terminal after
-   * retries exhaust, distinct from a long `reconnecting`.
+   * retries exhaust, distinct from a long `reconnecting`. Replay-latest: a
+   * handler that subscribes later immediately receives the current state.
    */
   'connection.changed': { state: 'connected' | 'reconnecting' | 'error' };
   /**
@@ -99,6 +100,11 @@ export class WalletEventEmitter implements WalletEvents {
   private lastSessionStarted:
     | WalletEventMap['auth.session-started']
     | undefined;
+  // Replay-latest for connection.changed: a host that mounts after the
+  // channel connected still runs its connected-sweep once.
+  private lastConnectionChanged:
+    | WalletEventMap['connection.changed']
+    | undefined;
 
   constructor(private readonly logger: Logger) {}
 
@@ -114,6 +120,13 @@ export class WalletEventEmitter implements WalletEvents {
         handler as (payload: WalletEventMap['auth.session-started']) => void,
         'auth.session-started',
         this.lastSessionStarted,
+      );
+    }
+    if (event === 'connection.changed' && this.lastConnectionChanged) {
+      this.dispatch(
+        handler as (payload: WalletEventMap['connection.changed']) => void,
+        'connection.changed',
+        this.lastConnectionChanged,
       );
     }
     return () => {
@@ -141,6 +154,10 @@ export class WalletEventEmitter implements WalletEvents {
       this.lastSessionStarted =
         payload as WalletEventMap['auth.session-started'];
     }
+    if (event === 'connection.changed') {
+      this.lastConnectionChanged =
+        payload as WalletEventMap['connection.changed'];
+    }
     const set = this.handlers.get(event);
     if (!set) {
       return;
@@ -159,10 +176,11 @@ export class WalletEventEmitter implements WalletEvents {
   /**
    * Drops all retained replay-latest payloads so a subscriber that registers
    * after a session end is not replayed the previous session's events (today the
-   * retained `auth.session-started` user and accounts; extend here as more events
-   * adopt replay-latest). Called by the SDK on session end.
+   * retained `auth.session-started` user and accounts and the latest
+   * `connection.changed`). Called by the SDK on session end.
    */
   clear(): void {
     this.lastSessionStarted = undefined;
+    this.lastConnectionChanged = undefined;
   }
 }

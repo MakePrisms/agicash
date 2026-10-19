@@ -36,13 +36,11 @@ Non-leader clients skip `TaskProcessor` entirely but still receive realtime upda
 
 ## Realtime Change Tracking
 
-`useTrackWalletChanges()` subscribes to a single Supabase broadcast channel (`wallet:{userId}`) for all entity types. Nine handlers dispatch updates to TanStack Query caches:
+The SDK owns the `wallet:<userId>` broadcast channel (`packages/wallet-sdk/domain/wallet/realtime-feed.ts`) and opens it when a session starts. `useTrackWalletChanges()` subscribes to the contract events from the ten handler hooks — accounts, transactions, contacts, cashu receive quotes, cashu receive swaps, cashu send quotes, cashu send swaps, spark receive quotes, spark send quotes, and the user — plus `connection.changed`.
 
-Accounts, Transactions, Contacts, CashuReceiveQuotes, CashuReceiveSwaps, CashuSendQuotes, CashuSendSwaps, SparkReceiveQuotes, SparkSendQuotes.
+**On every `connected`:** thirteen caches are invalidated (each entity cache plus the pending and unresolved lists) to catch updates missed while disconnected.
 
-**On reconnection:** All nine caches are invalidated to catch updates missed while disconnected.
-
-**Tab visibility:** When a tab goes to background/offline, channel state adjusts. On return, channels resubscribe and `onConnected` fires cache invalidation.
+**Hidden or offline:** a subscribed channel stays up. A failure while inactive, with no retry cycle already in progress, leaves the channel (public state `reconnecting`) and a later return to active rejoins from that closed state. A retry cycle that has already started keeps counting while the tab is inactive and can reach a terminal `error`. Becoming active again does not restart `error`.
 
 ## Files
 
@@ -50,5 +48,5 @@ Accounts, Transactions, Contacts, CashuReceiveQuotes, CashuReceiveSwaps, CashuSe
 app/features/wallet/
 ├── task-processing.ts                    # TaskProcessor component + useTakeTaskProcessingLead
 ├── task-processing-lock-repository.ts    # take_lead RPC wrapper
-└── use-track-wallet-changes.ts           # Realtime broadcast subscription
+└── use-track-wallet-changes.ts           # Subscribes to SDK events and refreshes caches
 ```

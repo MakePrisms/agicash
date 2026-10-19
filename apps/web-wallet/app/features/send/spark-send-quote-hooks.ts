@@ -6,7 +6,6 @@ import type {
   SparkSendQuote,
 } from '@agicash/wallet-sdk';
 import { SessionEndedError } from '@agicash/wallet-sdk';
-import type { AgicashDbSparkSendQuote } from '@agicash/wallet-sdk/temporary';
 import {
   DomainError,
   SparkSendQuoteRepository,
@@ -29,6 +28,7 @@ import {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
+import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 export function useSparkSendQuoteRepository() {
   const encryption = useEncryption();
@@ -96,33 +96,25 @@ export function useUnresolvedSparkSendQuotesCache() {
 /**
  * Hook that returns spark send quote change handlers.
  */
-export function useSparkSendQuoteChangeHandlers() {
+export function useSparkSendQuoteChangeHandlers(): WalletChangeHandlers<
+  'spark-send-quote.created' | 'spark-send-quote.updated'
+> {
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
-  const sparkSendQuoteRepository = useSparkSendQuoteRepository();
 
-  return [
-    {
-      event: 'SPARK_SEND_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const addedQuote = await sparkSendQuoteRepository.toQuote(payload);
-        unresolvedQuotesCache.add(addedQuote);
-      },
+  return {
+    'spark-send-quote.created': ({ quote }) => {
+      unresolvedQuotesCache.add(quote);
     },
-    {
-      event: 'SPARK_SEND_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const quote = await sparkSendQuoteRepository.toQuote(payload);
-
-        const isQuoteStillUnresolved =
-          quote.state === 'UNPAID' || quote.state === 'PENDING';
-        if (isQuoteStillUnresolved) {
-          unresolvedQuotesCache.update(quote);
-        } else {
-          unresolvedQuotesCache.remove(quote);
-        }
-      },
+    'spark-send-quote.updated': ({ quote }) => {
+      const isQuoteStillUnresolved =
+        quote.state === 'UNPAID' || quote.state === 'PENDING';
+      if (isQuoteStillUnresolved) {
+        unresolvedQuotesCache.update(quote);
+      } else {
+        unresolvedQuotesCache.remove(quote);
+      }
     },
-  ];
+  };
 }
 
 const useUnresolvedSparkSendQuotes = () => {
