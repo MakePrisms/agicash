@@ -6,12 +6,20 @@ import {
   type ScopeClock,
   createRunScopes,
 } from '../../lib/run-scope';
+import type { Account } from '../accounts/account';
 import type { ActivityMonitor, AuthSession, Logger } from '../sdk';
 import type {
   TaskProcessorApi,
   TaskProcessorState,
 } from '../sdk/task-processor';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
+import {
+  type KeyedSerialQueue,
+  type SagaEventBus,
+  type TaskSaga,
+  createKeyedSerialQueue,
+  createSagaStint,
+} from './task-saga';
 
 const LEAD_POLL_INTERVAL_MS = 5_000;
 const STOP_CHECKPOINT_TIMEOUT_MS = 5_000;
@@ -35,6 +43,14 @@ export type TaskProcessorDeps = {
   randomUUID?: () => string;
   /** Test seam; defaults to the global `setInterval` / `setTimeout`. */
   clock?: ScopeClock;
+  /** The wallet event bus the sagas subscribe to and emit on. */
+  walletEvents: SagaEventBus;
+  /** Loads the user's active accounts for one stint. */
+  loadAccounts: (userId: string, signal: AbortSignal) => Promise<Account[]>;
+  /** The flows that run while this instance leads. */
+  sagas: TaskSaga[];
+  /** Test seam; defaults to `Date.now`. */
+  now?: () => number;
 };
 
 const systemClock: ScopeClock = {
@@ -70,7 +86,8 @@ function createRepositoryTakeLead(db: AgicashDb): TakeLead {
  * is emitted as `task-processor.state-changed`. Each start-to-stop generation
  * runs in its own `RunScope`, so a late `take_lead` response from a stopped
  * generation can never change `state`. The client id is minted once per
- * instance and survives `stop()`/`start()`.
+ * instance and survives `stop()`/`start()`. While leader, the runtime runs
+ * the task sagas in a stint scope that dies when the lead does.
  */
 class TaskProcessorRuntime {
   private current: TaskProcessorState = 'stopped';
@@ -80,6 +97,8 @@ class TaskProcessorRuntime {
   private inFlight = false;
 
   private readonly scopes: RunScopes;
+  private readonly stints: RunScopes;
+  private readonly queue: KeyedSerialQueue;
   private readonly activity: ActivityMonitor;
   private readonly takeLead: TakeLead;
   private readonly randomUUID: () => string;
@@ -88,7 +107,10 @@ class TaskProcessorRuntime {
     this.activity = deps.activity;
     this.takeLead = deps.takeLead ?? createRepositoryTakeLead(deps.db);
     this.randomUUID = deps.randomUUID ?? (() => globalThis.crypto.randomUUID());
-    this.scopes = createRunScopes(deps.clock ?? systemClock);
+    const clock = deps.clock ?? systemClock;
+    this.scopes = createRunScopes(clock);
+    this.stints = createRunScopes(clock);
+    this.queue = createKeyedSerialQueue();
   }
 
   get state(): TaskProcessorState {
@@ -140,24 +162,29 @@ class TaskProcessorRuntime {
 
   /**
    * Stops the lead loop. Everything that matters happens synchronously,
-   * before the first await: the scope is cancelled (the interval, the
-   * activity subscription, and pending retry delays go away, and the
-   * in-flight `take_lead` is aborted), `state` becomes 'stopped', and no new
-   * bid can start. The lock row is not written; the lease simply expires
+   * before the first await: both scopes are cancelled (the lead interval, the
+   * activity subscription, pending retry delays, and the saga stint go away,
+   * and the in-flight `take_lead` is aborted), `state` becomes 'stopped', and
+   * no new bid can start. The lock row is not written; the lease simply expires
    * (6 s), and another client takes over.
    *
-   * The returned promise resolves when the tracked in-flight work settles,
-   * or after 5 s, whichever is first, and it never rejects. Await it when
-   * the instance must be quiet before the next step (a controlled
-   * shutdown); a caller that only needs the loop gone (sign-out) need not.
+   * The returned promise resolves when the tracked in-flight work on both
+   * scopes settles, or after 5 s, whichever is first, and it never rejects.
+   * Await it when the instance must be quiet before the next step (a
+   * controlled shutdown); a caller that only needs the loop gone (sign-out)
+   * need not.
    * Safe to call any number of times, from any state.
    */
   stop(): Promise<void> {
     this.scopes.cancel();
+    this.stints.cancel();
     this.inFlight = false;
     this.transition('stopped');
     this.lastLead = undefined;
-    return this.scopes.join(STOP_CHECKPOINT_TIMEOUT_MS);
+    return Promise.all([
+      this.scopes.join(STOP_CHECKPOINT_TIMEOUT_MS),
+      this.stints.join(STOP_CHECKPOINT_TIMEOUT_MS),
+    ]).then(() => undefined);
   }
 
   private transition(next: TaskProcessorState, error?: SdkError): void {
@@ -254,6 +281,39 @@ class TaskProcessorRuntime {
       this.deps.logger.debug('Yielded lead on task processing', { clientId });
     }
     this.transition(lead ? 'leader' : 'follower');
+    if (lead) {
+      this.beginStint();
+    } else {
+      this.stints.cancel();
+    }
+  }
+
+  private beginStint(): void {
+    const session = this.deps.getSession();
+    if (!session.isLoggedIn) {
+      return;
+    }
+    const scope = this.stints.renew();
+    const stint = createSagaStint({
+      scope,
+      userId: session.user.id,
+      events: this.deps.walletEvents,
+      activity: this.activity,
+      loadAccounts: (userId, signal) => this.deps.loadAccounts(userId, signal),
+      queue: this.queue,
+      logger: this.deps.logger,
+      now: this.deps.now ?? (() => Date.now()),
+    });
+    for (const saga of this.deps.sagas) {
+      try {
+        saga.start(stint);
+      } catch (error) {
+        this.deps.logger.error('Task saga failed to start', {
+          saga: saga.name,
+          cause: error,
+        });
+      }
+    }
   }
 }
 

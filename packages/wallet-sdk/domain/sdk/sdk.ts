@@ -43,6 +43,7 @@ import {
   createSupabaseRealtimeTransport,
 } from '../wallet/realtime-feed';
 import { createTaskProcessor } from '../wallet/task-processor-runtime';
+import { createTaskSagas } from '../wallet/task-sagas';
 import { WalletEventEmitter } from './events';
 import { type OwnedSessionKeys, createSessionKeys } from './session-keys';
 import { createUserProvisioner } from './user-provisioner';
@@ -178,15 +179,6 @@ export class AgicashSdk implements Sdk {
       logger: config.logger,
     });
 
-    taskProcessor = createTaskProcessor({
-      db,
-      getSession: getLiveSession,
-      activity: config.activity,
-      emit: (payload) => events.emit('task-processor.state-changed', payload),
-      logger: config.logger,
-    });
-    this.taskProcessor = taskProcessor;
-
     const sparkConfig: SparkWalletConfig = {
       storageDir: config.spark.storageDir ?? './.spark-data',
       apiKey: config.spark.breezApiKey,
@@ -197,6 +189,28 @@ export class AgicashSdk implements Sdk {
       keys,
       sparkConfig,
     });
+
+    taskProcessor = createTaskProcessor({
+      db,
+      getSession: getLiveSession,
+      activity: config.activity,
+      emit: (payload) => events.emit('task-processor.state-changed', payload),
+      logger: config.logger,
+      walletEvents: {
+        on: (event, handler) => events.on(event, handler),
+        emit: (message) => events.emit(message.event, message.payload as never),
+      },
+      loadAccounts: async (userId, signal) =>
+        (await accounts.getRepository()).getAllActive(userId, {
+          abortSignal: signal,
+        }),
+      sagas: createTaskSagas({
+        db,
+        keys,
+        getAccountRepository: accounts.getRepository,
+      }),
+    });
+    this.taskProcessor = taskProcessor;
 
     realtimeFeed = createRealtimeFeed({
       transport: createSupabaseRealtimeTransport(
