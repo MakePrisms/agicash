@@ -130,7 +130,6 @@ export { SparkSendQuoteSchema } from './domain/send/spark-send-quote';
 export { SparkSendQuoteRepository } from './domain/send/spark-send-quote-repository';
 export { SparkSendQuoteService } from './domain/send/spark-send-quote-service';
 export { toDecryptedCashuProofs } from './domain/send/utils';
-export { ProofStateSubscriptionManager } from './domain/send/proof-state-subscription-manager';
 export { resolveSendDestination } from './domain/send/resolve-destination';
 export {
   validateBolt11,

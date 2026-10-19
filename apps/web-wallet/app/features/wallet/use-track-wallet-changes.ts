@@ -26,7 +26,6 @@ import {
 import {
   useCashuSendSwapCache,
   useCashuSendSwapChangeHandlers,
-  useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
 import {
   useSparkSendQuoteChangeHandlers,
@@ -67,7 +66,8 @@ type FeedEvent =
 type SagaOnlyEvent =
   | 'cashu-receive-swap.created'
   | 'cashu-receive-swap.updated'
-  | 'cashu-receive-quote.created';
+  | 'cashu-receive-quote.created'
+  | 'cashu-send-swap.created';
 
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
@@ -85,7 +85,6 @@ export const useTrackWalletChanges = () => {
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendSwapCache = useCashuSendSwapCache();
-  const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
@@ -113,7 +112,6 @@ export const useTrackWalletChanges = () => {
     cashuReceiveQuoteCache.invalidate();
     unresolvedCashuSendQuotesCache.invalidate();
     cashuSendSwapCache.invalidate();
-    unresolvedCashuSendSwapsCache.invalidate();
     contactsCache.invalidate();
     sparkReceiveQuoteCache.invalidate();
     pendingSparkReceiveQuotesCache.invalidate();

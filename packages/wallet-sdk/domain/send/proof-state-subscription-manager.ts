@@ -2,6 +2,7 @@ import { getCashuWallet } from '@agicash/cashu';
 import { isSubset } from '@agicash/utils';
 import type { Proof, ProofState } from '@cashu/cashu-ts';
 import { toProof } from '../accounts/cashu-account';
+import type { Logger } from '../sdk';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 
 type Subscription = {
@@ -14,6 +15,8 @@ export class ProofStateSubscriptionManager {
   private subscriptions: Map<string, Subscription> = new Map();
   private proofUpdates: Record<string, Record<string, ProofState['state']>> =
     {};
+
+  constructor(private readonly logger: Logger) {}
 
   /**
    * Subscribes to proof state updates for the given mint URL and swaps.
@@ -44,7 +47,7 @@ export class ProofStateSubscriptionManager {
           ...mintSubscription,
           onSpent,
         });
-        console.debug(
+        this.logger.debug(
           'Proof state updates subscription already exists for mint. Updated callback.',
           {
             mintUrl,
@@ -57,13 +60,16 @@ export class ProofStateSubscriptionManager {
         };
       }
 
-      console.debug('Unsubscribing from proof state updates for mint', mintUrl);
+      this.logger.debug(
+        'Unsubscribing from proof state updates for mint',
+        mintUrl,
+      );
       unsubscribe();
     }
 
     const wallet = getCashuWallet(mintUrl);
 
-    console.debug('Subscribing to proof state updates for mint', {
+    this.logger.debug('Subscribing to proof state updates for mint', {
       mintUrl,
       swapIds: ids,
     });
@@ -85,7 +91,7 @@ export class ProofStateSubscriptionManager {
       swaps.flatMap((x) => x.proofsToSend).map((p) => toProof(p)),
       subscriptionCallback,
       (error) =>
-        console.error('Proof state updates socket error', {
+        this.logger.error('Proof state updates socket error', {
           cause: error,
         }),
     );
@@ -100,7 +106,7 @@ export class ProofStateSubscriptionManager {
       const unsubscribe = await subscriptionPromise;
 
       wallet.mint.webSocketConnection?.onClose((event) => {
-        console.debug('Mint socket closed', { mintUrl, event });
+        this.logger.debug('Mint socket closed', { mintUrl, event });
         this.subscriptions.delete(mintUrl);
       });
 
@@ -112,6 +118,17 @@ export class ProofStateSubscriptionManager {
       this.subscriptions.delete(mintUrl);
       throw error;
     }
+  }
+
+  /** Drops every mint subscription without waiting for the sockets to close. */
+  unsubscribeAll(): void {
+    for (const entry of this.subscriptions.values()) {
+      void entry.subscriptionPromise.then(
+        (unsubscribe) => unsubscribe(),
+        () => undefined,
+      );
+    }
+    this.subscriptions.clear();
   }
 
   private async handleProofStateUpdate(
@@ -137,7 +154,7 @@ export class ProofStateSubscriptionManager {
         this.proofUpdates[swap.id][proof.unblindedSignature] === 'SPENT',
     );
 
-    console.debug('allProofsSpent', allProofsSpent, { swapId: swap.id });
+    this.logger.debug('allProofsSpent', { allProofsSpent, swapId: swap.id });
 
     if (allProofsSpent) {
       delete this.proofUpdates[swap.id];

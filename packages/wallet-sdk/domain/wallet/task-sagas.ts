@@ -9,6 +9,9 @@ import { CashuReceiveSwapRepository } from '../receive/cashu-receive-swap-reposi
 import { createCashuReceiveSwapSaga } from '../receive/cashu-receive-swap-saga';
 import { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
 import type { SessionKeys } from '../sdk/session-keys';
+import { CashuSendSwapRepository } from '../send/cashu-send-swap-repository';
+import { createCashuSendSwapSaga } from '../send/cashu-send-swap-saga';
+import { CashuSendSwapService } from '../send/cashu-send-swap-service';
 import type { TaskSaga } from './task-saga';
 
 export type TaskSagasDeps = {
@@ -41,6 +44,12 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
   const getService = async (): Promise<CashuReceiveSwapService> =>
     new CashuReceiveSwapService(await getRepository());
 
+  const getSendSwapRepository = async (): Promise<CashuSendSwapRepository> =>
+    new CashuSendSwapRepository(deps.db, await deps.keys.getEncryption());
+
+  const getSendSwapService = async (): Promise<CashuSendSwapService> =>
+    new CashuSendSwapService(await getSendSwapRepository(), await getService());
+
   const getReceiveQuoteRepository =
     async (): Promise<CashuReceiveQuoteRepository> => {
       const encryption = await deps.keys.getEncryption();
@@ -62,6 +71,10 @@ export function createTaskSagas(deps: TaskSagasDeps): TaskSaga[] {
     createCashuReceiveSwapSaga({
       getRepository,
       getService,
+    }),
+    createCashuSendSwapSaga({
+      getRepository: getSendSwapRepository,
+      getService: getSendSwapService,
     }),
     createCashuReceiveQuoteSaga({
       getRepository: getReceiveQuoteRepository,
