@@ -50,10 +50,10 @@ export type StintAccounts = {
   getAll(): Promise<Account[]>;
   /** The account, or undefined when it is not active. */
   get(id: string): Promise<Account | undefined>;
-  /** Like `get`, but throws `Account not found for id: ${id}` or a type mismatch, as master's `getCashuAccount` / `getSparkAccount`. */
+  /** Like `get`, but throws `Account not found for id: ${id}` or `Account with id: ${id} is not of type: ${type}`. */
   getCashu(id: string): Promise<CashuAccount>;
   getSpark(id: string): Promise<SparkAccount>;
-  /** By mint URL and currency, as master's `getCashuAccountByMintUrlAndCurrency`. */
+  /** The active Cashu account for the mint URL and currency, or undefined. */
   findCashu(
     mintUrl: string,
     currency: Currency,
@@ -73,7 +73,7 @@ export type WorkingSet<T> = {
   apply(item: T): void;
 };
 
-/** Master's mutation scopes: FIFO per key, distinct keys concurrent. */
+/** FIFO per key, distinct keys concurrent. */
 export type KeyedSerialQueue = {
   /**
    * Runs `job` after every job enqueued earlier under `key` has settled.
@@ -100,14 +100,17 @@ export type ActionOutcome<T> =
 
 export const RETRY_MAX_DELAY_MS = 30_000;
 
+/** How often a saga retries items it gave up on while the host stays active. */
+export const GIVE_UP_RETRY_MS = 60_000;
+
 export type SagaAction<T> = {
-  /** Master's mutation scope id; undefined for an unscoped mutation. */
+  /** The serial-queue key; undefined runs the action at once. */
   key: string | undefined;
   retry: RetryPolicy;
   /** One attempt. Re-reads its guard from the working set; returns undefined when the guard fails. */
   attempt: () => Promise<T | undefined>;
   onSuccess?: (value: T) => void;
-  /** Master's onError: the log line, plus any follow-up action. */
+  /** Called on `failed`: the log line, plus any follow-up action. */
   onError: (error: unknown) => void;
   /**
    * Called after `onError` on `failed`, and alone on `abandoned`, only while
@@ -253,7 +256,11 @@ export function startWorkingSet<T extends { version: number }>(
         continue;
       }
       const held = items.get(key);
-      if (held && (held.item.version > item.version || held.seq > startedAt)) {
+      if (
+        held &&
+        (held.item.version > item.version ||
+          (held.item.version === item.version && held.seq > startedAt))
+      ) {
         next.set(key, held);
         continue;
       }
@@ -274,6 +281,7 @@ export function startWorkingSet<T extends { version: number }>(
         continue;
       }
       next.set(key, held);
+      again = true;
     }
     items = next;
   };

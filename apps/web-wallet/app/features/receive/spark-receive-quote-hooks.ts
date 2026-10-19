@@ -17,20 +17,9 @@ import { useTransactionsCache } from '../transactions/transaction-hooks';
 import type { WalletChangeHandlers } from '../wallet/use-track-wallet-changes';
 
 class SparkReceiveQuoteCache {
-  // Query that tracks the "active" spark receive quote. Active one is the one that user created in current browser session.
-  // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
-  // Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
-  // that were created in previous browser sessions.
   public static Key = 'spark-receive-quote';
 
   constructor(private readonly queryClient: QueryClient) {}
-
-  get(quoteId: string) {
-    return this.queryClient.getQueryData<SparkReceiveQuote>([
-      SparkReceiveQuoteCache.Key,
-      quoteId,
-    ]);
-  }
 
   invalidate() {
     return this.queryClient.invalidateQueries({
@@ -82,6 +71,7 @@ export function useTrackSparkReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
+  const transactionsCache = useTransactionsCache();
 
   const { data } = useQuery({
     queryKey: [SparkReceiveQuoteCache.Key, quoteId],
@@ -97,11 +87,12 @@ export function useTrackSparkReceiveQuote({
     if (!data) return;
 
     if (data.state === 'PAID') {
+      transactionsCache.invalidateTransaction(data.transactionId);
       onPaidRef.current?.(data);
     } else if (data.state === 'EXPIRED') {
       onExpiredRef.current?.(data);
     }
-  }, [data]);
+  }, [data, transactionsCache]);
 
   if (!data) {
     return { status: 'LOADING' };
@@ -118,21 +109,9 @@ export function useTrackSparkReceiveQuote({
  */
 export function useSparkReceiveQuoteChangeHandlers(): WalletChangeHandlers<'spark-receive-quote.updated'> {
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
 
   return {
     'spark-receive-quote.updated': ({ quote }) => {
-      const tracked = sparkReceiveQuoteCache.get(quote.id);
-      if (
-        tracked &&
-        tracked.version < quote.version &&
-        quote.state === 'PAID'
-      ) {
-        // Updating the quote navigates to the transaction page; refetch the
-        // transaction now so the page does not show the cached DRAFT row while
-        // the transaction's own realtime update is delayed.
-        transactionsCache.invalidateTransaction(quote.transactionId);
-      }
       sparkReceiveQuoteCache.updateIfExists(quote);
     },
   };

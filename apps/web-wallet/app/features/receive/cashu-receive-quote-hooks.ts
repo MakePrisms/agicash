@@ -39,20 +39,9 @@ export function useCashuReceiveQuoteRepository() {
 }
 
 class CashuReceiveQuoteCache {
-  // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
-  // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
-  // Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
-  // that were created in previous browser sessions.
   public static Key = 'cashu-receive-quote';
 
   constructor(private readonly queryClient: QueryClient) {}
-
-  get(quoteId: string) {
-    return this.queryClient.getQueryData<CashuReceiveQuote>([
-      CashuReceiveQuoteCache.Key,
-      quoteId,
-    ]);
-  }
 
   invalidate() {
     return this.queryClient.invalidateQueries({
@@ -137,6 +126,7 @@ export function useTrackCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
+  const transactionsCache = useTransactionsCache();
 
   const { data } = useQuery({
     queryKey: [CashuReceiveQuoteCache.Key, quoteId],
@@ -152,11 +142,12 @@ export function useTrackCashuReceiveQuote({
     if (!data) return;
 
     if (data.state === 'COMPLETED') {
+      transactionsCache.invalidateTransaction(data.transactionId);
       onPaidRef.current?.(data);
     } else if (data.state === 'EXPIRED') {
       onExpiredRef.current?.(data);
     }
-  }, [data]);
+  }, [data, transactionsCache]);
 
   if (!data) {
     return { status: 'LOADING' };
@@ -173,21 +164,9 @@ export function useTrackCashuReceiveQuote({
  */
 export function useCashuReceiveQuoteChangeHandlers(): WalletChangeHandlers<'cashu-receive-quote.updated'> {
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
 
   return {
     'cashu-receive-quote.updated': ({ quote }) => {
-      const tracked = cashuReceiveQuoteCache.get(quote.id);
-      if (
-        tracked &&
-        tracked.version < quote.version &&
-        quote.state === 'COMPLETED'
-      ) {
-        // Updating the quote navigates to the transaction page; refetch the
-        // transaction now so the page does not show the cached DRAFT row while
-        // the transaction's own realtime update is delayed.
-        transactionsCache.invalidateTransaction(quote.transactionId);
-      }
       cashuReceiveQuoteCache.updateIfExists(quote);
     },
   };

@@ -1,5 +1,6 @@
 import type { Logger } from '../sdk';
 import {
+  GIVE_UP_RETRY_MS,
   type SagaStint,
   type TaskSaga,
   runAction,
@@ -43,10 +44,12 @@ export function createCashuSendSwapSaga(deps: CashuSendSwapSagaDeps): TaskSaga {
         }
         resetPending = false;
         reset();
+        void runSync();
       };
 
       stint.onActivated(resetIfPending);
       stint.onReconnected(resetIfPending);
+      stint.scope.every(GIVE_UP_RETRY_MS, resetIfPending);
       stint.scope.onCleanup(() => {
         manager.unsubscribeAll();
       });

@@ -1,4 +1,5 @@
 import {
+  GIVE_UP_RETRY_MS,
   type SagaStint,
   type TaskSaga,
   runAction,
@@ -35,10 +36,12 @@ export function createCashuReceiveSwapSaga(
         }
         resetPending = false;
         reset();
+        void runSync();
       };
 
       stint.onActivated(resetIfPending);
       stint.onReconnected(resetIfPending);
+      stint.scope.every(GIVE_UP_RETRY_MS, resetIfPending);
 
       const set = startWorkingSet<CashuReceiveSwap>(stint, {
         name: 'cashu-receive-swap',

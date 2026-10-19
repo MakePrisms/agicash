@@ -17,10 +17,12 @@ import { MintQuoteSubscriptionManager } from '../../lib/mint-quote-subscription-
 import type { Logger } from '../sdk';
 import {
   type MeltQuoteInput,
+  type MintQuoteTrackerOptions,
   createMeltQuoteTracker,
   createMintQuoteTracker,
 } from '../wallet/quote-trackers';
 import {
+  GIVE_UP_RETRY_MS,
   type SagaStint,
   type TaskSaga,
   runAction,
@@ -43,6 +45,8 @@ export type CashuReceiveQuoteSagaDeps = {
   createMintManager?: (logger: Logger) => MintQuoteSubscriptionManager;
   /** Test seam; defaults to new managers with the stint logger. */
   createMeltManager?: (logger: Logger) => MeltQuoteSubscriptionManager;
+  /** Test seam; passed to the mint quote tracker. */
+  mintTrackerOptions?: MintQuoteTrackerOptions;
 };
 
 const SAGA_NAME = 'cashu-receive-quote';
@@ -123,17 +127,23 @@ export function createCashuReceiveQuoteSaga(
         }
       };
 
-      const mintTracker = createMintQuoteTracker(stint, mintManager, {
-        getAccount: async (quoteId) => {
-          const quote = set.get(quoteId);
-          if (!quote) {
-            return undefined;
-          }
-          const account = await stint.accounts.get(quote.accountId);
-          return account?.type === 'cashu' ? account : undefined;
+      const mintTracker = createMintQuoteTracker(
+        stint,
+        mintManager,
+        {
+          getAccount: async (quoteId) => {
+            const quote = set.get(quoteId);
+            if (!quote) {
+              return undefined;
+            }
+            const account = await stint.accounts.get(quote.accountId);
+            return account?.type === 'cashu' ? account : undefined;
+          },
+          onUpdate: processMintQuote,
+          onGiveUp,
         },
-        onUpdate: processMintQuote,
-      });
+        deps.mintTrackerOptions,
+      );
 
       const meltTracker = createMeltQuoteTracker(stint, meltManager, {
         getWallet,
@@ -163,6 +173,7 @@ export function createCashuReceiveQuoteSaga(
           }
           expire(stint, receiveQuote.id);
         },
+        onGiveUp,
       });
 
       const reset = (): void => {
@@ -178,10 +189,12 @@ export function createCashuReceiveQuoteSaga(
         }
         resetPending = false;
         reset();
+        void runSync();
       };
 
       stint.onActivated(resetIfPending);
       stint.onReconnected(resetIfPending);
+      stint.scope.every(GIVE_UP_RETRY_MS, resetIfPending);
 
       const set = startWorkingSet<CashuReceiveQuote>(stint, {
         name: SAGA_NAME,

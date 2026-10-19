@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { Account, CashuAccount } from '../accounts/account';
+import { GIVE_UP_RETRY_MS } from '../wallet/task-saga';
 import {
   type RecordedTimer,
   createTestStint,
@@ -346,5 +347,36 @@ describe('cashu receive swap saga', () => {
     expect(completeCalls).toHaveLength(5);
     expect(completeCalls[4]?.swap.tokenHash).toBe('hash-1');
     expect(completeCalls[4]?.args).toHaveLength(2);
+  });
+
+  it('(j) calls completeSwap again after a give-up when the give-up retry interval fires', async () => {
+    const error = new Error('mint down');
+    const { kit, completeCalls, getPendingCalls, setComplete } = harness({
+      pending: [swap('hash-1', 'account-online', 1)],
+    });
+    setComplete(async () => {
+      throw error;
+    });
+    await flush();
+    const interval = armed(kit.clock.intervals, GIVE_UP_RETRY_MS);
+    expect(interval).toBeDefined();
+    interval?.callback();
+    await flush();
+    expect(completeCalls).toHaveLength(1);
+
+    armed(kit.clock.timeouts, 1000)?.callback();
+    await flush();
+    armed(kit.clock.timeouts, 2000)?.callback();
+    await flush();
+    armed(kit.clock.timeouts, 4000)?.callback();
+    await flush();
+    expect(completeCalls).toHaveLength(4);
+    expect(kit.logger.errorLog).toHaveLength(1);
+
+    interval?.callback();
+    await flush();
+    expect(completeCalls).toHaveLength(5);
+    expect(completeCalls[4]?.swap.tokenHash).toBe('hash-1');
+    expect(getPendingCalls).toHaveLength(1);
   });
 });

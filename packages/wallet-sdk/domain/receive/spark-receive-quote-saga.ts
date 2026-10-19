@@ -17,6 +17,7 @@ import {
   createMeltQuoteTracker,
 } from '../wallet/quote-trackers';
 import {
+  GIVE_UP_RETRY_MS,
   type SagaStint,
   type TaskSaga,
   runAction,
@@ -63,6 +64,7 @@ export function createSparkReceiveQuoteSaga(
       >();
       const checked = new Set<string>();
       const checking = new Set<string>();
+      let checkEpoch = 0;
 
       const meltManager = createMeltManager(stint.logger);
 
@@ -213,13 +215,14 @@ export function createSparkReceiveQuoteSaga(
           return;
         }
         checking.add(quote.id);
+        const epoch = checkEpoch;
         stint.scope.track(
           (async () => {
             try {
               const response = await account.wallet.getPaymentByInvoice({
                 invoice: quote.paymentRequest,
               });
-              if (!stint.scope.alive || !checking.has(quote.id)) {
+              if (!stint.scope.alive || epoch !== checkEpoch) {
                 return;
               }
               checked.add(quote.id);
@@ -227,7 +230,7 @@ export function createSparkReceiveQuoteSaga(
                 handlePayment(account.id, response.payment);
               }
             } catch (error) {
-              if (!stint.scope.alive || !checking.has(quote.id)) {
+              if (!stint.scope.alive || epoch !== checkEpoch) {
                 return;
               }
               stint.logger.error('Error checking initial receive payment', {
@@ -236,10 +239,24 @@ export function createSparkReceiveQuoteSaga(
                 quoteId: quote.id,
               });
             } finally {
-              checking.delete(quote.id);
+              if (epoch === checkEpoch) {
+                checking.delete(quote.id);
+              }
             }
           })(),
         );
+      };
+
+      const ensureListener = (account: SparkAccount): void => {
+        if (listeners.has(account.id)) {
+          return;
+        }
+        const registration = addListener(account);
+        void registration.then((added) => {
+          if (!added && listeners.get(account.id) === registration) {
+            listeners.delete(account.id);
+          }
+        });
       };
 
       const meltTracker = createMeltQuoteTracker(stint, meltManager, {
@@ -270,6 +287,12 @@ export function createSparkReceiveQuoteSaga(
         },
       });
 
+      const resetChecks = (): void => {
+        checked.clear();
+        checking.clear();
+        checkEpoch += 1;
+      };
+
       const resetIfPending = (): void => {
         if (!resetPending) {
           return;
@@ -278,12 +301,15 @@ export function createSparkReceiveQuoteSaga(
         meltManager.unsubscribeAll();
         meltTracker.reset();
         removeListeners();
-        checked.clear();
-        checking.clear();
+        resetChecks();
+        void runSync();
       };
 
+      stint.onActivated(resetChecks);
+      stint.onReconnected(resetChecks);
       stint.onActivated(resetIfPending);
       stint.onReconnected(resetIfPending);
+      stint.scope.every(GIVE_UP_RETRY_MS, resetIfPending);
 
       const set = startWorkingSet<SparkReceiveQuote>(stint, {
         name: SAGA_NAME,
@@ -345,18 +371,7 @@ export function createSparkReceiveQuoteSaga(
           );
 
           for (const account of sparkAccounts.values()) {
-            const registration =
-              listeners.get(account.id) ?? addListener(account);
-            const added = await registration;
-            if (!stint.scope.alive) {
-              return;
-            }
-            if (!added) {
-              if (listeners.get(account.id) === registration) {
-                listeners.delete(account.id);
-              }
-              continue;
-            }
+            ensureListener(account);
             for (const quote of online) {
               if (quote.accountId === account.id) {
                 checkInitialPayment(account, quote);

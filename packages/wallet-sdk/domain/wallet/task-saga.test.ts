@@ -410,6 +410,51 @@ describe('task saga runtime', () => {
     expect(set.values()).toHaveLength(1);
   });
 
+  it('(l3) lets a loaded row with a higher version win over an in-flight apply', async () => {
+    const kit = createTestStint();
+    const resolvers: Array<(rows: Row[]) => void> = [];
+    const set = startWorkingSet<Row>(kit.stint, {
+      name: 'test',
+      keyOf: (item) => item.id,
+      isPending: (item) => item.pending,
+      load: () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }),
+      onChange: () => undefined,
+    });
+    set.apply(row('a', 2));
+    const loaded = row('a', 5);
+    resolvers[0]?.([loaded]);
+    await flush();
+    expect(set.get('a')).toBe(loaded);
+  });
+
+  it('(l4) keeps an in-flight item the load omitted, runs one more load, and drops it if omitted again', async () => {
+    const kit = createTestStint();
+    const resolvers: Array<(rows: Row[]) => void> = [];
+    const set = startWorkingSet<Row>(kit.stint, {
+      name: 'test',
+      keyOf: (item) => item.id,
+      isPending: (item) => item.pending,
+      load: () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }),
+      onChange: () => undefined,
+    });
+    const applied = row('y', 1);
+    set.apply(applied);
+    resolvers[0]?.([]);
+    await flush();
+    expect(set.get('y')).toBe(applied);
+    expect(resolvers).toHaveLength(2);
+    resolvers[1]?.([]);
+    await flush();
+    expect(set.get('y')).toBeUndefined();
+    expect(resolvers).toHaveLength(2);
+  });
+
   it('(l2) keeps a tombstone across reloads so a late echo cannot re-add a finished item', async () => {
     const kit = createTestStint();
     const resolvers: Array<(rows: Row[]) => void> = [];

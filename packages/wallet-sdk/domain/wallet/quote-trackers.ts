@@ -46,6 +46,8 @@ export type MeltQuoteHandlers = {
   onPending?: (meltQuote: MeltQuoteBolt11Response) => void;
   onPaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   onExpired?: (meltQuote: MeltQuoteBolt11Response) => void;
+  /** Called when an update or an expiry check fails; the saga re-arms the quote for the next reload. */
+  onGiveUp?: () => void;
 };
 
 /** A stint-bound tracker. `reset` invalidates every armed expiry timer; the next `sync` re-arms them. */
@@ -54,7 +56,7 @@ export type QuoteTracker<T> = {
   reset(): void;
 };
 
-/** Master's `useOnMeltQuoteStateChange`, as a stint-bound tracker. Call `sync` after every working-set change. */
+/** Tracks melt quote state changes for one stint. Call `sync` after every working-set change. */
 export function createMeltQuoteTracker(
   stint: SagaStint,
   manager: MeltQuoteSubscriptionManager,
@@ -119,6 +121,7 @@ export function createMeltQuoteTracker(
         stint.logger.error('Error handling melt quote update', {
           cause: error,
         });
+        handlers.onGiveUp?.();
       }),
     );
   };
@@ -174,9 +177,13 @@ export function createMeltQuoteTracker(
           if (!stint.scope.alive) {
             return;
           }
+          if (armed.get(quote.id) === token) {
+            armed.delete(quote.id);
+          }
           stint.logger.error('Error checking melt quote upon expiration', {
             cause: error,
           });
+          handlers.onGiveUp?.();
         }
       })(),
     );
@@ -236,7 +243,8 @@ function supportsWebSocketsForMintQuotes(account: CashuAccount): boolean {
 }
 
 /**
- * Master's websocket / polling split for mint quotes (RQ7–RQ11). `sync`
+ * Tracks mint quotes over websockets, or by polling when the mint lacks
+ * NUT-17 mint quote support. `sync`
  * resolves each quote's account first; the returned promise rejects when an
  * account read fails.
  */
@@ -246,6 +254,8 @@ export function createMintQuoteTracker(
   handlers: {
     getAccount: (quoteId: string) => Promise<CashuAccount | undefined>;
     onUpdate: (mintQuote: MintQuoteBolt11Response) => void;
+    /** Called when an expiry check fails; the saga re-arms the quote for the next reload. */
+    onGiveUp?: () => void;
   },
   options?: MintQuoteTrackerOptions,
 ): {
@@ -290,6 +300,9 @@ export function createMintQuoteTracker(
     quote: CashuReceiveQuote,
   ): Promise<MintQuoteBolt11Response> => {
     const account = await handlers.getAccount(quote.id);
+    if (!stint.scope.alive) {
+      throw new Error('Task stint ended');
+    }
     if (!account) {
       throw new Error(`Account not found for id: ${quote.accountId}`);
     }
@@ -323,9 +336,13 @@ export function createMintQuoteTracker(
           if (stint.scope.signal.aborted || !stint.scope.alive) {
             return;
           }
+          if (armed.get(quote.id) === token) {
+            armed.delete(quote.id);
+          }
           stint.logger.error('Error checking mint quote upon expiration', {
             cause: error,
           });
+          handlers.onGiveUp?.();
         }
       })(),
     );

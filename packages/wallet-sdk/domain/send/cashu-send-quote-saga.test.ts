@@ -9,6 +9,7 @@ import type { MeltQuoteSubscriptionManager } from '../../lib/melt-quote-subscrip
 import type { RunScope } from '../../lib/run-scope';
 import type { Account, CashuAccount } from '../accounts/account';
 import {
+  GIVE_UP_RETRY_MS,
   type KeyedSerialQueue,
   createKeyedSerialQueue,
 } from '../wallet/task-saga';
@@ -386,7 +387,11 @@ describe('createCashuSendQuoteSaga', () => {
     expect(h.keys).toEqual(['cashu-send-quote-quote-1']);
   });
 
-  it('(f) a quote without a cashu account logs and is not tracked; others proceed', async () => {
+  it('(f) a quote whose account is missing or offline is skipped silently; others proceed', async () => {
+    const offline = {
+      ...cashuAccount({ id: 'account-offline' }),
+      isOnline: false,
+    } as CashuAccount;
     const h = harness({
       pending: [
         sendQuote({
@@ -394,16 +399,17 @@ describe('createCashuSendQuoteSaga', () => {
           quoteId: 'melt-quote-2',
           accountId: 'account-missing',
         }),
+        sendQuote({
+          id: 'quote-3',
+          quoteId: 'melt-quote-3',
+          accountId: 'account-offline',
+        }),
         sendQuote(),
       ],
+      accounts: [cashuAccount({ id: 'account-1' }), offline],
     });
     await settle();
-    expect(h.logger.errorLog).toEqual([
-      {
-        message: 'Cashu account not found for send quote',
-        meta: { sendQuoteId: 'quote-2' },
-      },
-    ]);
+    expect(h.logger.errorLog).toHaveLength(0);
     expect(h.melt.calls.map((c) => [c.mintUrl, c.quoteIds])).toEqual([
       [MINT_URL, ['melt-quote-1']],
     ]);
@@ -479,5 +485,94 @@ describe('createCashuSendQuoteSaga', () => {
     await settle();
     expect(e.calls.expireSendQuote).toHaveLength(1);
     expect(e.emitted).toHaveLength(0);
+  });
+
+  it('(i) a queued initiate does nothing once the quote is no longer UNPAID, and does not give up', async () => {
+    const h = harness({ pending: [sendQuote()] });
+    await settle();
+    const first = deferred<unknown>();
+    h.impl.initiateSend = () => first.promise;
+    h.meltUpdate(meltQuote('UNPAID'));
+    await settle();
+    h.meltUpdate(meltQuote('UNPAID'));
+    await settle();
+    expect(h.calls.initiateSend).toHaveLength(1);
+    expect(h.keys).toEqual([
+      'initiate-cashu-send-quote-quote-1',
+      'initiate-cashu-send-quote-quote-1',
+    ]);
+
+    h.events.emit('cashu-send-quote.updated', {
+      quote: sendQuote({ state: 'PENDING', version: 2 }),
+    });
+    first.resolve({});
+    await settle();
+    expect(h.calls.initiateSend).toHaveLength(1);
+    expect(h.logger.errorLog).toHaveLength(0);
+
+    h.activity.setActive(false);
+    h.activity.notify();
+    h.activity.setActive(true);
+    h.activity.notify();
+    await settle();
+    expect(h.melt.unsubscribeAllCalls()).toBe(0);
+  });
+
+  it('(j) after a give-up, the give-up retry interval resubscribes the melt quotes', async () => {
+    const h = harness({ pending: [sendQuote()] });
+    await settle();
+    const interval = armed(h.clock.intervals, GIVE_UP_RETRY_MS);
+    expect(interval).toBeDefined();
+    interval?.callback();
+    await settle();
+    expect(h.melt.unsubscribeAllCalls()).toBe(0);
+
+    h.impl.initiateSend = () => Promise.reject(new Error('boom'));
+    h.meltUpdate(meltQuote('UNPAID'));
+    for (const ms of [1000, 2000, 4000]) {
+      await settle();
+      armed(h.clock.timeouts, ms)?.callback();
+    }
+    await settle();
+    expect(h.calls.initiateSend).toHaveLength(4);
+    const subscribesBefore = h.melt.calls.length;
+
+    interval?.callback();
+    await settle();
+    expect(h.melt.unsubscribeAllCalls()).toBe(1);
+    expect(h.melt.calls.length).toBe(subscribesBefore + 1);
+    expect(h.melt.calls.at(-1)?.quoteIds).toEqual(['melt-quote-1']);
+
+    interval?.callback();
+    await settle();
+    expect(h.melt.unsubscribeAllCalls()).toBe(1);
+  });
+
+  it('(k) a failed melt expiry check gives up, so the next activation resets the subscriptions', async () => {
+    const cause = new Error('mint down');
+    const h = harness({
+      pending: [sendQuote()],
+      accounts: [
+        cashuAccount({
+          id: 'account-1',
+          checkMeltQuote: () => Promise.reject(cause),
+        }),
+      ],
+    });
+    await settle();
+    h.setNow(100_001);
+    armed(h.clock.timeouts, 100_000)?.callback();
+    await settle();
+    expect(h.logger.errorLog).toEqual([
+      { message: 'Error checking melt quote upon expiration', meta: { cause } },
+    ]);
+    expect(h.melt.unsubscribeAllCalls()).toBe(0);
+
+    h.activity.setActive(false);
+    h.activity.notify();
+    h.activity.setActive(true);
+    h.activity.notify();
+    await settle();
+    expect(h.melt.unsubscribeAllCalls()).toBe(1);
   });
 });

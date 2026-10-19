@@ -15,6 +15,7 @@ import {
   createMeltQuoteTracker,
 } from '../wallet/quote-trackers';
 import {
+  GIVE_UP_RETRY_MS,
   type SagaStint,
   type TaskSaga,
   runAction,
@@ -101,6 +102,7 @@ export function createCashuSendQuoteSaga(
             completeSendQuote(stint, sendQuote.id, meltQuote);
           }
         },
+        onGiveUp,
       });
 
       const resetIfPending = (): void => {
@@ -110,10 +112,12 @@ export function createCashuSendQuoteSaga(
         resetPending = false;
         meltManager.unsubscribeAll();
         meltTracker.reset();
+        void runSync();
       };
 
       stint.onActivated(resetIfPending);
       stint.onReconnected(resetIfPending);
+      stint.scope.every(GIVE_UP_RETRY_MS, resetIfPending);
 
       const set = startWorkingSet<CashuSendQuote>(stint, {
         name: SAGA_NAME,
@@ -150,13 +154,7 @@ export function createCashuSendQuoteSaga(
             if (!stint.scope.alive) {
               return;
             }
-            if (account?.type !== 'cashu') {
-              stint.logger.error('Cashu account not found for send quote', {
-                sendQuoteId: quote.id,
-              });
-              continue;
-            }
-            if (!account.isOnline) {
+            if (account?.type !== 'cashu' || !account.isOnline) {
               continue;
             }
             inputs.push({
@@ -245,7 +243,7 @@ export function createCashuSendQuoteSaga(
           },
           attempt: async () => {
             const quote = set.get(quoteId);
-            if (!quote) {
+            if (quote?.state !== 'UNPAID') {
               return undefined;
             }
             const account = await current.accounts.getCashu(quote.accountId);

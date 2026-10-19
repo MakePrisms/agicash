@@ -3,6 +3,7 @@ import { DomainError } from '../../lib/error';
 import { sparkDebugLog } from '../../lib/spark/wallet';
 import type { SparkAccount } from '../accounts/account';
 import {
+  GIVE_UP_RETRY_MS,
   type SagaStint,
   type TaskSaga,
   runAction,
@@ -59,14 +60,13 @@ export function createSparkSendQuoteSaga(
           });
         }
         listeners.clear();
+        listenerInflight.clear();
       };
 
-      const reset = (): void => {
-        lastTriggered.clear();
+      const resetChecks = (): void => {
         checked.clear();
         checking.clear();
         checkEpoch += 1;
-        removeListeners();
       };
 
       const resetIfPending = (): void => {
@@ -74,11 +74,17 @@ export function createSparkSendQuoteSaga(
           return;
         }
         resetPending = false;
-        reset();
+        lastTriggered.clear();
+        resetChecks();
+        removeListeners();
+        void runSync();
       };
 
+      stint.onActivated(resetChecks);
+      stint.onReconnected(resetChecks);
       stint.onActivated(resetIfPending);
       stint.onReconnected(resetIfPending);
+      stint.scope.every(GIVE_UP_RETRY_MS, resetIfPending);
       stint.scope.onCleanup(() => {
         removeListeners();
       });
@@ -149,10 +155,10 @@ export function createSparkSendQuoteSaga(
         startFail(stint, quote.id, message);
       }
 
-      function addListener(account: SparkAccount): Promise<void> {
+      async function addListener(account: SparkAccount): Promise<void> {
         const epoch = listenerEpoch;
         const wallet = account.wallet;
-        const run = (async () => {
+        try {
           const listenerId = await wallet.addEventListener({
             onEvent(event) {
               if (!stint.scope.alive) {
@@ -177,27 +183,28 @@ export function createSparkSendQuoteSaga(
             listenerId,
             remove: () => wallet.removeEventListener(listenerId),
           });
-        })();
-        stint.scope.track(run);
-        return run;
+        } catch (error) {
+          if (stint.scope.alive) {
+            stint.logger.error('Failed to add Spark event listener', {
+              cause: error,
+              accountId: account.id,
+            });
+          }
+        }
       }
 
-      async function ensureListener(account: SparkAccount): Promise<void> {
-        if (listeners.has(account.id)) {
-          return;
-        }
-        const inflight = listenerInflight.get(account.id);
-        if (inflight) {
-          await inflight;
+      function ensureListener(account: SparkAccount): void {
+        if (listeners.has(account.id) || listenerInflight.has(account.id)) {
           return;
         }
         const run = addListener(account);
         listenerInflight.set(account.id, run);
-        try {
-          await run;
-        } finally {
-          listenerInflight.delete(account.id);
-        }
+        stint.scope.track(run);
+        void run.then(() => {
+          if (listenerInflight.get(account.id) === run) {
+            listenerInflight.delete(account.id);
+          }
+        });
       }
 
       function startInitialCheck(
@@ -300,10 +307,7 @@ export function createSparkSendQuoteSaga(
             if (!stint.scope.alive) {
               return;
             }
-            await ensureListener(account);
-            if (!stint.scope.alive) {
-              return;
-            }
+            ensureListener(account);
             for (const quote of pendingQuotes) {
               const current = set.get(quote.id);
               if (!current || !isPendingQuote(current)) {

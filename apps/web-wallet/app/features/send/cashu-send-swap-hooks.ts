@@ -39,10 +39,6 @@ export function useCashuSendSwapService() {
 }
 
 class CashuSendSwapCache {
-  // Query that tracks the "active" cashu send swap. Active one is the one that user created in current browser session.
-  // We want to track active send swap even after it is completed or expired which is why we can't use unresolved send swaps query.
-  // Unresolved send swaps query is used for active unresolved swaps plus "background" unresolved swaps. "Background" swaps are send swaps
-  // that were created in previous browser sessions.
   public static Key = 'cashu-send-swap';
 
   constructor(private readonly queryClient: QueryClient) {}

@@ -89,6 +89,7 @@ function meltHarness() {
     paid: [] as MeltQuoteBolt11Response[],
     expired: [] as MeltQuoteBolt11Response[],
   };
+  let giveUps = 0;
   const tracker = createMeltQuoteTracker(kit.stint, manager.melt, {
     getWallet: async (mintUrl, currency) => {
       getWalletCalls.push({ mintUrl, currency });
@@ -103,6 +104,9 @@ function meltHarness() {
     onPending: (quote) => events.pending.push(quote),
     onPaid: (quote) => events.paid.push(quote),
     onExpired: (quote) => events.expired.push(quote),
+    onGiveUp: () => {
+      giveUps += 1;
+    },
   });
   return {
     ...kit,
@@ -111,6 +115,7 @@ function meltHarness() {
     events,
     checkCalls,
     getWalletCalls,
+    giveUps: () => giveUps,
     setCheck: (impl: typeof checkImpl) => {
       checkImpl = impl;
     },
@@ -244,6 +249,67 @@ describe('createMeltQuoteTracker', () => {
     expect(h.checkCalls).toHaveLength(0);
     expect(h.events.expired).toHaveLength(0);
   });
+
+  it('(d2) a failed expiry check gives up once and the next sync re-arms it', async () => {
+    const h = meltHarness();
+    const failure = new Error('mint unreachable');
+    h.setCheck(async () => {
+      throw failure;
+    });
+    h.tracker.sync([meltInput('melt-1')]);
+    await flush();
+    h.setNow(100_000);
+    armed(h.clock.timeouts, 100_000)[0]?.callback();
+    await flush();
+    expect(h.checkCalls).toEqual(['melt-1']);
+    expect(h.giveUps()).toBe(1);
+    expect(h.logger.errorLog).toEqual([
+      {
+        message: 'Error checking melt quote upon expiration',
+        meta: { cause: failure },
+      },
+    ]);
+
+    h.setCheck(async (id) => meltQuote(id, 'UNPAID'));
+    h.tracker.sync([meltInput('melt-1')]);
+    await flush();
+    expect(h.checkCalls).toEqual(['melt-1', 'melt-1']);
+    expect(h.events.expired.map((q) => q.quote)).toEqual(['melt-1']);
+    expect(h.giveUps()).toBe(1);
+  });
+
+  it('(d3) a failed update gives up once', async () => {
+    const h = meltHarness();
+    h.tracker.sync([meltInput('melt-1', undefined, { inputAmount: 110 })]);
+    await flush();
+    const onUpdate = h.manager.calls[0]?.onUpdate as (
+      quote: MeltQuoteBolt11Response,
+    ) => void;
+    h.setCheck(async () => {
+      throw new Error('mint unreachable');
+    });
+    onUpdate(meltQuote('melt-1', 'PAID', { change: [] }));
+    await flush();
+    expect(h.giveUps()).toBe(1);
+  });
+
+  it('(d4) a re-armed timer replaces the older one: only the newest checks', async () => {
+    const h = meltHarness();
+    h.tracker.sync([meltInput('melt-1')]);
+    h.tracker.reset();
+    h.tracker.sync([meltInput('melt-1')]);
+    await flush();
+    const timers = armed(h.clock.timeouts, 100_000);
+    expect(timers).toHaveLength(2);
+
+    h.setNow(100_000);
+    for (const timer of timers) {
+      timer.callback();
+    }
+    await flush();
+    expect(h.checkCalls).toEqual(['melt-1']);
+    expect(h.events.expired).toHaveLength(1);
+  });
 });
 
 function mintAccount(nut17: boolean): CashuAccount & {
@@ -314,6 +380,7 @@ function mintHarness(
   const kit = createTestStint();
   const manager = fakeManager();
   const updates: MintQuoteBolt11Response[] = [];
+  let giveUps = 0;
   const tracker = createMintQuoteTracker(
     kit.stint,
     manager.mint,
@@ -323,10 +390,13 @@ function mintHarness(
         return accounts.find((a) => a.id === quote?.accountId);
       },
       onUpdate: (mintQuote) => updates.push(mintQuote),
+      onGiveUp: () => {
+        giveUps += 1;
+      },
     },
     options,
   );
-  return { ...kit, manager, tracker, updates };
+  return { ...kit, manager, tracker, updates, giveUps: () => giveUps };
 }
 
 describe('createMintQuoteTracker', () => {
@@ -430,6 +500,66 @@ describe('createMintQuoteTracker', () => {
     expect(ws.checkCalls).toHaveLength(1);
     expect(h.logger.errorLog).toEqual([]);
     expect(h.updates).toEqual([]);
+    expect(h.giveUps()).toBe(0);
+  });
+
+  it('(h3) a failed expiry check gives up once and the next sync re-arms it', async () => {
+    const ws = mintAccount(true);
+    const failure = new Error('mint down');
+    ws.setCheck(() => Promise.reject(failure));
+    const quotes = [receiveQuote('quote-1', ws.id)];
+    const onceWithRetry = (async (options: Parameters<typeof withRetry>[0]) =>
+      options.fn()) as typeof withRetry;
+    const h = mintHarness([ws], quotes, { withRetry: onceWithRetry });
+    await h.tracker.sync(quotes);
+    await flush();
+    h.setNow(50_000);
+    armed(h.clock.timeouts, 50_000)[0]?.callback();
+    await flush();
+    expect(ws.checkCalls).toEqual(['mint-quote-1']);
+    expect(h.giveUps()).toBe(1);
+    expect(h.logger.errorLog).toEqual([
+      {
+        message: 'Error checking mint quote upon expiration',
+        meta: { cause: failure },
+      },
+    ]);
+
+    ws.setCheck(
+      async (id) => ({ quote: id, state: 'UNPAID' }) as MintQuoteBolt11Response,
+    );
+    await h.tracker.sync(quotes);
+    await flush();
+    expect(ws.checkCalls).toEqual(['mint-quote-1', 'mint-quote-1']);
+    expect(h.updates.map((u) => u.quote)).toEqual(['mint-quote-1']);
+    expect(h.giveUps()).toBe(1);
+  });
+
+  it('(h4) does not check the mint once the stint dies during the account read', async () => {
+    const poll = mintAccount(false);
+    const quotes = [receiveQuote('quote-1', poll.id)];
+    const kit = createTestStint();
+    let reads = 0;
+    let cancelOnRead = false;
+    const tracker = createMintQuoteTracker(kit.stint, fakeManager().mint, {
+      getAccount: async () => {
+        reads += 1;
+        if (cancelOnRead) {
+          kit.cancel();
+        }
+        return poll;
+      },
+      onUpdate: () => undefined,
+    });
+    await tracker.sync(quotes);
+    await flush();
+    expect(poll.checkCalls).toEqual(['mint-quote-1']);
+
+    cancelOnRead = true;
+    armed(kit.clock.timeouts, 10_000)[0]?.callback();
+    await flush();
+    expect(reads).toBe(3);
+    expect(poll.checkCalls).toEqual(['mint-quote-1']);
   });
 });
 

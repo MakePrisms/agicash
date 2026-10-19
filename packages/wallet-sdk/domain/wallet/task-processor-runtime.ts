@@ -86,8 +86,10 @@ function createRepositoryTakeLead(db: AgicashDb): TakeLead {
  * is emitted as `task-processor.state-changed`. Each start-to-stop generation
  * runs in its own `RunScope`, so a late `take_lead` response from a stopped
  * generation can never change `state`. The client id is minted once per
- * instance and survives `stop()`/`start()`. While leader, the runtime runs
- * the task sagas in a stint scope that dies when the lead does.
+ * instance and survives `stop()`/`start()`. While leader and active, the
+ * runtime runs the task sagas in a stint scope that dies when the lead does or
+ * when a bid finds the host inactive; the next `true` verdict while active
+ * starts a new stint.
  */
 class TaskProcessorRuntime {
   private current: TaskProcessorState = 'stopped';
@@ -205,12 +207,20 @@ class TaskProcessorRuntime {
    * including transport retries (1s/2s/4s, then one warn until the next tick).
    * Every trigger (start, the 5s interval, an activity change) calls this; it
    * is a no-op when the scope is dead, a bid is already in flight, or the
-   * host is inactive. A bid that finds the host inactive after a backoff is
-   * abandoned; the next activation starts a fresh one. Ends by applying a
+   * host is inactive; an inactive host also ends the saga stint. A bid that
+   * finds the host inactive after a backoff is abandoned; the next activation
+   * starts a fresh one. Ends by applying a
    * verdict, by being abandoned, or by evaporating when the scope dies.
    */
   private async bidForLead(scope: RunScope): Promise<void> {
-    if (!scope.alive || this.inFlight || !this.activity.isActive()) {
+    if (!scope.alive) {
+      return;
+    }
+    if (!this.activity.isActive()) {
+      this.endStint();
+      return;
+    }
+    if (this.inFlight) {
       return;
     }
     this.inFlight = true;
@@ -281,11 +291,20 @@ class TaskProcessorRuntime {
       this.deps.logger.debug('Yielded lead on task processing', { clientId });
     }
     this.transition(lead ? 'leader' : 'follower');
-    if (lead) {
+    if (!lead) {
+      this.stints.cancel();
+      return;
+    }
+    if (this.activity.isActive()) {
       this.beginStint();
     } else {
-      this.stints.cancel();
+      this.lastLead = undefined;
     }
+  }
+
+  private endStint(): void {
+    this.stints.cancel();
+    this.lastLead = undefined;
   }
 
   private beginStint(): void {
@@ -294,25 +313,34 @@ class TaskProcessorRuntime {
       return;
     }
     const scope = this.stints.renew();
-    const stint = createSagaStint({
-      scope,
-      userId: session.user.id,
-      events: this.deps.walletEvents,
-      activity: this.activity,
-      loadAccounts: (userId, signal) => this.deps.loadAccounts(userId, signal),
-      queue: this.queue,
-      logger: this.deps.logger,
-      now: this.deps.now ?? (() => Date.now()),
-    });
-    for (const saga of this.deps.sagas) {
-      try {
-        saga.start(stint);
-      } catch (error) {
-        this.deps.logger.error('Task saga failed to start', {
-          saga: saga.name,
-          cause: error,
-        });
+    try {
+      const stint = createSagaStint({
+        scope,
+        userId: session.user.id,
+        events: this.deps.walletEvents,
+        activity: this.activity,
+        loadAccounts: (userId, signal) =>
+          this.deps.loadAccounts(userId, signal),
+        queue: this.queue,
+        logger: this.deps.logger,
+        now: this.deps.now ?? (() => Date.now()),
+      });
+      for (const saga of this.deps.sagas) {
+        try {
+          saga.start(stint);
+        } catch (error) {
+          this.deps.logger.error('Task saga failed to start', {
+            saga: saga.name,
+            cause: error,
+          });
+        }
       }
+    } catch (cause) {
+      this.deps.logger.error('Task saga failed to start', {
+        saga: 'stint',
+        cause,
+      });
+      this.endStint();
     }
   }
 }

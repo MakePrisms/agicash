@@ -14,6 +14,7 @@ import type { MeltQuoteSubscriptionManager } from '../../lib/melt-quote-subscrip
 import type { RunScope } from '../../lib/run-scope';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import {
+  GIVE_UP_RETRY_MS,
   type KeyedSerialQueue,
   createKeyedSerialQueue,
 } from '../wallet/task-saga';
@@ -52,6 +53,8 @@ function fakeMeltManager() {
 
 type FakeBreez = {
   listeners: EventListener[];
+  addAttempts: number;
+  beforeAdd: () => Promise<void>;
   added: string[];
   removed: string[];
   lookups: string[];
@@ -65,6 +68,8 @@ function sparkAccount(options: { id: string; isOnline?: boolean }): {
 } {
   const breez: FakeBreez = {
     listeners: [],
+    addAttempts: 0,
+    beforeAdd: async () => undefined,
     added: [],
     removed: [],
     lookups: [],
@@ -83,6 +88,8 @@ function sparkAccount(options: { id: string; isOnline?: boolean }): {
     currency: 'BTC',
     wallet: {
       addEventListener: async (listener: EventListener) => {
+        breez.addAttempts += 1;
+        await breez.beforeAdd();
         breez.listeners.push(listener);
         const id = `listener-${options.id}-${breez.listeners.length}`;
         breez.added.push(id);
@@ -596,5 +603,128 @@ describe('createSparkReceiveQuoteSaga', () => {
     expect(h.calls.expire.map((q) => q.id)).toEqual(['quote-1']);
     expect(h.calls.complete).toHaveLength(0);
     expect(armed(h.clock.timeouts, 1000)).toBeUndefined();
+  });
+
+  it('(m) a reconnect reload runs the initial check again', async () => {
+    const spark = sparkAccount({ id: 'spark-1' });
+    const h = harness({
+      pending: [lightningQuote()],
+      accounts: [spark.account],
+    });
+    await settle();
+    expect(spark.breez.lookups).toEqual(['invoice-fixture-1']);
+    h.events.emit('connection.changed', { state: 'connected' });
+    await settle();
+    expect(spark.breez.lookups).toEqual([
+      'invoice-fixture-1',
+      'invoice-fixture-1',
+    ]);
+  });
+
+  it('(n) the initial check runs when adding the listener fails; the next sync adds it again', async () => {
+    const spark = sparkAccount({ id: 'spark-1' });
+    const cause = new Error('listener down');
+    spark.breez.beforeAdd = () => Promise.reject(cause);
+    const h = harness({
+      pending: [lightningQuote()],
+      accounts: [spark.account],
+    });
+    await settle();
+    expect(spark.breez.addAttempts).toBe(1);
+    expect(spark.breez.added).toEqual([]);
+    expect(spark.breez.lookups).toEqual(['invoice-fixture-1']);
+    expect(h.logger.errorLog).toEqual([
+      {
+        message: 'Failed to add Spark event listener',
+        meta: { cause, accountId: 'spark-1' },
+      },
+    ]);
+    spark.breez.beforeAdd = async () => undefined;
+    h.events.emit('spark-receive-quote.updated', {
+      quote: lightningQuote({ version: 2 }),
+    });
+    await settle();
+    expect(spark.breez.addAttempts).toBe(2);
+    expect(spark.breez.added).toEqual(['listener-spark-1-1']);
+  });
+
+  it('(o) the initial check does not wait for the listener registration', async () => {
+    const spark = sparkAccount({ id: 'spark-1' });
+    const gate = deferred<void>();
+    spark.breez.beforeAdd = () => gate.promise;
+    harness({ pending: [lightningQuote()], accounts: [spark.account] });
+    await settle();
+    expect(spark.breez.addAttempts).toBe(1);
+    expect(spark.breez.added).toEqual([]);
+    expect(spark.breez.lookups).toEqual(['invoice-fixture-1']);
+    gate.resolve();
+    await settle();
+    expect(spark.breez.added).toEqual(['listener-spark-1-1']);
+  });
+
+  it('(p) a stale initial check does not clear a newer check', async () => {
+    const spark = sparkAccount({ id: 'spark-1' });
+    const stale = deferred<GetPaymentByInvoiceResponse>();
+    const fresh = deferred<GetPaymentByInvoiceResponse>();
+    const results = [stale.promise, fresh.promise];
+    spark.breez.lookup = () => results.shift() ?? Promise.resolve({});
+    const h = harness({
+      pending: [lightningQuote()],
+      accounts: [spark.account],
+    });
+    await settle();
+    expect(spark.breez.lookups).toHaveLength(1);
+    h.events.emit('connection.changed', { state: 'connected' });
+    await settle();
+    expect(spark.breez.lookups).toHaveLength(2);
+    stale.reject(new Error('stale lookup failed'));
+    await settle();
+    h.events.emit('spark-receive-quote.updated', {
+      quote: lightningQuote({ version: 2 }),
+    });
+    await settle();
+    expect(spark.breez.lookups).toHaveLength(2);
+    expect(h.logger.errorLog).toEqual([]);
+    fresh.resolve({});
+    await settle();
+  });
+
+  it('(q) a complete that gave up runs again when the give-up retry interval fires', async () => {
+    const spark = sparkAccount({ id: 'spark-1' });
+    spark.breez.lookup = async () => ({ payment: lightningPayment() });
+    const h = harness({
+      pending: [lightningQuote()],
+      accounts: [spark.account],
+    });
+    const succeed = h.impl.complete;
+    const cause = new Error('complete down');
+    h.impl.complete = () => Promise.reject(cause);
+    await settle();
+    expect(h.calls.complete).toHaveLength(1);
+    for (const ms of [1000, 2000, 4000]) {
+      armed(h.clock.timeouts, ms)?.callback();
+      await settle();
+    }
+    expect(h.calls.complete).toHaveLength(4);
+    expect(h.logger.errorLog).toEqual([
+      {
+        message: 'Complete spark receive quote error',
+        meta: { cause, receiveQuoteId: 'quote-1' },
+      },
+    ]);
+    h.impl.complete = succeed;
+    const interval = armed(h.clock.intervals, GIVE_UP_RETRY_MS);
+    expect(interval).toBeDefined();
+    interval?.callback();
+    await settle();
+    expect(h.calls.complete).toHaveLength(5);
+    expect(spark.breez.removed).toEqual(['listener-spark-1-1']);
+    expect(spark.breez.added).toEqual([
+      'listener-spark-1-1',
+      'listener-spark-1-2',
+    ]);
+    expect(h.emitted.map((q) => [q.id, q.state])).toEqual([
+      ['quote-1', 'PAID'],
+    ]);
   });
 });

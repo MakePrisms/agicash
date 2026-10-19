@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { Account, CashuAccount } from '../accounts/account';
 import {
+  GIVE_UP_RETRY_MS,
   type KeyedSerialQueue,
   createKeyedSerialQueue,
 } from '../wallet/task-saga';
@@ -544,6 +545,43 @@ describe('cashu send swap saga', () => {
     expect(swapCalls[4]?.swap.id).toBe('swap-1');
     expect(swapCalls[4]?.swap.state).toBe('DRAFT');
     expect(swapCalls[4]?.args).toHaveLength(1);
+  });
+
+  it('(i2) re-arms a failed draft when the give-up retry interval fires', async () => {
+    const error = new Error('mint down');
+    const { kit, swapCalls, getUnresolvedCalls, unsubscribeCount, setSwap } =
+      harness({
+        accounts: [
+          cashuAccount('account-online', 'https://mint.example', true),
+        ],
+        unresolved: [draftSwap('swap-1', 'account-online', 1)],
+      });
+    setSwap(async () => {
+      throw error;
+    });
+    await flush();
+    const interval = armed(kit.clock.intervals, GIVE_UP_RETRY_MS);
+    expect(interval).toBeDefined();
+    interval?.callback();
+    await flush();
+    expect(unsubscribeCount()).toBe(0);
+    expect(swapCalls).toHaveLength(1);
+
+    armed(kit.clock.timeouts, 1000)?.callback();
+    await flush();
+    armed(kit.clock.timeouts, 2000)?.callback();
+    await flush();
+    armed(kit.clock.timeouts, 4000)?.callback();
+    await flush();
+    expect(swapCalls).toHaveLength(4);
+    expect(kit.logger.errorLog).toHaveLength(1);
+
+    interval?.callback();
+    await flush();
+    expect(unsubscribeCount()).toBe(1);
+    expect(swapCalls).toHaveLength(5);
+    expect(swapCalls[4]?.swap.id).toBe('swap-1');
+    expect(getUnresolvedCalls).toHaveLength(1);
   });
 
   it('(j) logs an account read failure and does not swap', async () => {

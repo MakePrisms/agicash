@@ -3,6 +3,7 @@ import type { Payment } from '@agicash/breez-sdk-spark';
 import { DomainError } from '../../lib/error';
 import type { SparkAccount } from '../accounts/account';
 import {
+  GIVE_UP_RETRY_MS,
   type KeyedSerialQueue,
   createKeyedSerialQueue,
 } from '../wallet/task-saga';
@@ -23,10 +24,12 @@ type Listener = {
 
 function createWallet() {
   const listeners: Listener[] = [];
+  const addAttempts: Listener[] = [];
   const addCalls: string[] = [];
   const removeCalls: string[] = [];
   const getPaymentCalls: string[] = [];
   let nextId = 1;
+  let beforeAdd = async (): Promise<void> => undefined;
   let getPaymentImpl = async (
     paymentId: string,
   ): Promise<{ payment: Payment }> => ({
@@ -34,6 +37,8 @@ function createWallet() {
   });
   const wallet = {
     addEventListener: async (listener: Listener) => {
+      addAttempts.push(listener);
+      await beforeAdd();
       const id = `listener-${nextId}`;
       nextId += 1;
       listeners.push(listener);
@@ -51,9 +56,13 @@ function createWallet() {
   return {
     wallet,
     listeners,
+    addAttempts,
     addCalls,
     removeCalls,
     getPaymentCalls,
+    setBeforeAdd: (impl: () => Promise<void>) => {
+      beforeAdd = impl;
+    },
     setGetPayment: (
       impl: (paymentId: string) => Promise<{ payment: Payment }>,
     ) => {
@@ -697,5 +706,91 @@ describe('spark send quote saga', () => {
     expect(
       (kit.logger.warnLog[0]?.meta as { cause: unknown } | undefined)?.cause,
     ).toBe(error);
+  });
+
+  it('(m) checks getPayment again after a reconnect reload', async () => {
+    const quote = pendingQuote('quote-1', 'account-1', 1, 'transfer-1');
+    const { kit, wallet } = harness({
+      unresolved: [quote],
+    });
+    await flush();
+    expect(wallet.getPaymentCalls).toEqual(['transfer-1']);
+    kit.events.emit('connection.changed', { state: 'connected' });
+    await flush();
+    expect(wallet.getPaymentCalls).toEqual(['transfer-1', 'transfer-1']);
+  });
+
+  it('(n) checks getPayment when adding the listener fails and adds it again on the next sync', async () => {
+    const error = new Error('listener down');
+    const quote = pendingQuote('quote-1', 'account-1', 1, 'transfer-1');
+    const { kit, wallet } = harness({
+      unresolved: [quote],
+    });
+    wallet.setBeforeAdd(async () => {
+      throw error;
+    });
+    await flush();
+    expect(wallet.addAttempts).toHaveLength(1);
+    expect(wallet.addCalls).toHaveLength(0);
+    expect(wallet.getPaymentCalls).toEqual(['transfer-1']);
+    expect(kit.logger.errorLog).toEqual([
+      {
+        message: 'Failed to add Spark event listener',
+        meta: { cause: error, accountId: 'account-1' },
+      },
+    ]);
+    expect(kit.logger.warnLog).toHaveLength(0);
+    wallet.setBeforeAdd(async () => undefined);
+    kit.events.emit('spark-send-quote.updated', {
+      quote: pendingQuote('quote-1', 'account-1', 2, 'transfer-1'),
+    });
+    await flush();
+    expect(wallet.addAttempts).toHaveLength(2);
+    expect(wallet.addCalls).toEqual(['listener-1']);
+  });
+
+  it('(o) checks getPayment without waiting for the listener registration', async () => {
+    const gate = deferred<void>();
+    const quote = pendingQuote('quote-1', 'account-1', 1, 'transfer-1');
+    const { wallet } = harness({
+      unresolved: [quote],
+    });
+    wallet.setBeforeAdd(() => gate.promise);
+    await flush();
+    expect(wallet.addAttempts).toHaveLength(1);
+    expect(wallet.addCalls).toHaveLength(0);
+    expect(wallet.getPaymentCalls).toEqual(['transfer-1']);
+    gate.resolve();
+    await flush();
+    expect(wallet.addCalls).toEqual(['listener-1']);
+    expect(wallet.addAttempts).toHaveLength(1);
+  });
+
+  it('(p) initiates again after a failed initiate when the give-up retry interval fires', async () => {
+    const error = new Error('network down');
+    const quote = unpaid('quote-1', 'account-1', 1);
+    const { kit, keys, initiateCalls, setInitiate } = harness({
+      unresolved: [quote],
+    });
+    setInitiate(async () => {
+      throw error;
+    });
+    await flush();
+    for (const ms of [1000, 2000, 4000]) {
+      armed(kit.clock.timeouts, ms)?.callback();
+      await flush();
+    }
+    expect(initiateCalls).toHaveLength(4);
+    expect(kit.logger.errorLog).toHaveLength(1);
+    const interval = armed(kit.clock.intervals, GIVE_UP_RETRY_MS);
+    expect(interval).toBeDefined();
+    interval?.callback();
+    await flush();
+    expect(initiateCalls).toHaveLength(5);
+    expect(initiateCalls[4]?.quote.id).toBe('quote-1');
+    expect(keys).toEqual([
+      'spark-send-quote-quote-1',
+      'spark-send-quote-quote-1',
+    ]);
   });
 });

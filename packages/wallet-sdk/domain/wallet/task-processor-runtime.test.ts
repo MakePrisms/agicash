@@ -831,4 +831,121 @@ describe('createTaskProcessor', () => {
     expect(starts).toBe(0);
     expect(harness.processor.state).toBe('leader');
   });
+
+  it('(x) ends the stint of an inactive leader and starts a new one on reactivation', async () => {
+    const started: SagaStint[] = [];
+    const activity = createActivity({ active: true });
+    const harness = createHarness({
+      activity: activity.activity,
+      sagas: [
+        {
+          name: 'only',
+          start(stint) {
+            started.push(stint);
+          },
+        },
+      ],
+    });
+    await becomeLeader(harness);
+    expect(started).toHaveLength(1);
+    const first = started[0];
+    expect(first?.scope.alive).toBe(true);
+    activity.setActive(false);
+    activity.notify();
+    await flush();
+    expect(first?.scope.alive).toBe(false);
+    expect(first?.scope.signal.aborted).toBe(true);
+    expect(harness.processor.state).toBe('leader');
+    expect(harness.calls).toHaveLength(1);
+    activity.setActive(true);
+    activity.notify();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(started).toHaveLength(2);
+    expect(started[1]).not.toBe(first);
+    expect(started[1]?.scope.alive).toBe(true);
+    expect(harness.processor.state).toBe('leader');
+  });
+
+  it('(y) starts no stint when a bid resolves true after the host went inactive', async () => {
+    let starts = 0;
+    const activity = createActivity({ active: true });
+    const harness = createHarness({
+      activity: activity.activity,
+      sagas: [
+        {
+          name: 'only',
+          start() {
+            starts += 1;
+          },
+        },
+      ],
+    });
+    harness.processor.start();
+    expect(harness.calls).toHaveLength(1);
+    activity.setActive(false);
+    harness.calls[0]?.resolve(true);
+    await flush();
+    expect(starts).toBe(0);
+    expect(harness.processor.state).toBe('leader');
+    activity.setActive(true);
+    activity.notify();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(starts).toBe(1);
+  });
+
+  it('(z) logs a stint that fails to start and retries it on the next true verdict', async () => {
+    const cause = new Error('subscribe boom');
+    let failSubscribe = false;
+    let starts = 0;
+    const activity: ActivityMonitor = {
+      isActive: () => true,
+      subscribe: () => {
+        if (failSubscribe) {
+          throw cause;
+        }
+        return () => undefined;
+      },
+    };
+    const harness = createHarness({
+      activity,
+      sagas: [
+        {
+          name: 'only',
+          start() {
+            starts += 1;
+          },
+        },
+      ],
+    });
+    harness.processor.start();
+    expect(harness.calls).toHaveLength(1);
+    failSubscribe = true;
+    harness.calls[0]?.resolve(true);
+    await flush();
+    expect(harness.processor.state).toBe('leader');
+    expect(starts).toBe(0);
+    expect(harness.errorLog).toEqual([
+      {
+        message: 'Task saga failed to start',
+        meta: { saga: 'stint', cause },
+      },
+    ]);
+    expect(
+      (harness.errorLog[0]?.meta as { cause: unknown } | undefined)?.cause,
+    ).toBe(cause);
+    failSubscribe = false;
+    harness.clock?.intervals[0]?.callback();
+    await flush();
+    expect(harness.calls).toHaveLength(2);
+    harness.calls[1]?.resolve(true);
+    await flush();
+    expect(starts).toBe(1);
+    expect(harness.errorLog).toHaveLength(1);
+  });
 });

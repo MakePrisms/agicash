@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { ExtendedCashuWallet } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
+import type { withRetry } from '@agicash/utils';
 import {
   type MeltQuoteBolt11Response,
   MintOperationError,
@@ -11,6 +12,8 @@ import type { getInitializedCashuWallet } from '../../lib/cashu';
 import type { MeltQuoteSubscriptionManager } from '../../lib/melt-quote-subscription-manager';
 import type { MintQuoteSubscriptionManager } from '../../lib/mint-quote-subscription-manager';
 import type { Account, CashuAccount } from '../accounts/account';
+import type { MintQuoteTrackerOptions } from '../wallet/quote-trackers';
+import { GIVE_UP_RETRY_MS } from '../wallet/task-saga';
 import {
   type RecordedTimer,
   createTestStint,
@@ -63,6 +66,7 @@ function cashuAccount(options: {
   meltCalls?: MeltCall[];
   meltImpl?: () => Promise<unknown>;
   checkMintCalls?: string[];
+  checkMintImpl?: (id: string) => Promise<unknown>;
 }): CashuAccount {
   return {
     id: options.id,
@@ -89,6 +93,9 @@ function cashuAccount(options: {
       }),
       checkMintQuoteBolt11: async (id: string) => {
         options.checkMintCalls?.push(id);
+        if (options.checkMintImpl) {
+          return options.checkMintImpl(id);
+        }
         return { quote: id, state: 'UNPAID' };
       },
       meltProofsIdempotent: (
@@ -158,6 +165,7 @@ function harness(options: {
   pending: CashuReceiveQuote[];
   accounts?: Account[];
   initCashuWallet?: typeof getInitializedCashuWallet;
+  mintTrackerOptions?: MintQuoteTrackerOptions;
 }) {
   const accounts = options.accounts ?? [
     cashuAccount({ id: 'account-1', mintUrl: MINT_URL, nut17: true }),
@@ -217,6 +225,7 @@ function harness(options: {
       mint.manager as unknown as MintQuoteSubscriptionManager,
     createMeltManager: () =>
       melt.manager as unknown as MeltQuoteSubscriptionManager,
+    mintTrackerOptions: options.mintTrackerOptions,
   });
   saga.start(kit.stint);
   const mintUpdate = (state: string, quote = 'mint-quote-1') =>
@@ -501,7 +510,10 @@ describe('createCashuReceiveQuoteSaga', () => {
     h.activity.setActive(true);
     h.activity.notify();
     await settle();
+    h.events.emit('connection.changed', { state: 'connected' });
+    await settle();
     expect(h.mint.unsubscribeAllCalls()).toBe(0);
+    expect(h.melt.unsubscribeAllCalls()).toBe(0);
 
     h.mintUpdate('PAID');
     for (const ms of [1000, 2000, 4000]) {
@@ -525,7 +537,94 @@ describe('createCashuReceiveQuoteSaga', () => {
     await settle();
     expect(h.mint.unsubscribeAllCalls()).toBe(1);
     expect(h.melt.unsubscribeAllCalls()).toBe(1);
+    expect(h.mint.calls.length).toBeGreaterThan(subscribesBefore);
+    expect(h.mint.calls.at(-1)?.quoteIds).toEqual(['mint-quote-1']);
+
+    h.activity.setActive(false);
+    h.activity.notify();
+    h.activity.setActive(true);
+    h.activity.notify();
+    await settle();
+    expect(h.mint.unsubscribeAllCalls()).toBe(1);
+    expect(h.melt.unsubscribeAllCalls()).toBe(1);
+  });
+
+  it('(s) after a give-up, the give-up retry interval resubscribes without a reload', async () => {
+    const h = harness({ pending: [lightningQuote({ state: 'PAID' })] });
+    await settle();
+    const interval = armed(h.clock.intervals, GIVE_UP_RETRY_MS);
+    expect(interval).toBeDefined();
+    interval?.callback();
+    await settle();
+    expect(h.mint.unsubscribeAllCalls()).toBe(0);
+
+    h.impl.complete = () => Promise.reject(new Error('mint down'));
+    h.mintUpdate('PAID');
+    for (const ms of [1000, 2000, 4000]) {
+      await settle();
+      armed(h.clock.timeouts, ms)?.callback();
+    }
+    await settle();
+    expect(h.calls.complete).toHaveLength(4);
+    const subscribesBefore = h.mint.calls.length;
+
+    interval?.callback();
+    await settle();
+    expect(h.mint.unsubscribeAllCalls()).toBe(1);
+    expect(h.melt.unsubscribeAllCalls()).toBe(1);
     expect(h.mint.calls.length).toBe(subscribesBefore + 1);
     expect(h.mint.calls.at(-1)?.quoteIds).toEqual(['mint-quote-1']);
+  });
+
+  it('(t) a failed mint expiry check gives up, so the next activation resets the subscriptions', async () => {
+    const cause = new Error('mint down');
+    const h = harness({
+      pending: [lightningQuote()],
+      accounts: [
+        cashuAccount({
+          id: 'account-1',
+          mintUrl: MINT_URL,
+          nut17: true,
+          checkMintImpl: () => Promise.reject(cause),
+        }),
+      ],
+      mintTrackerOptions: {
+        withRetry: (async (options: Parameters<typeof withRetry>[0]) =>
+          options.fn()) as typeof withRetry,
+      },
+    });
+    await settle();
+    h.setNow(100_001);
+    armed(h.clock.timeouts, 100_000)?.callback();
+    await settle();
+    expect(h.logger.errorLog).toEqual([
+      { message: 'Error checking mint quote upon expiration', meta: { cause } },
+    ]);
+    expect(h.mint.unsubscribeAllCalls()).toBe(0);
+
+    h.activity.setActive(false);
+    h.activity.notify();
+    h.activity.setActive(true);
+    h.activity.notify();
+    await settle();
+    expect(h.mint.unsubscribeAllCalls()).toBe(1);
+  });
+
+  it('(u) a failed melt update gives up, so the next activation resets the subscriptions', async () => {
+    const h = harness({ pending: [tokenQuote()] });
+    await settle();
+    h.meltUpdate('PAID');
+    await settle();
+    expect(h.logger.errorLog.map((l) => l.message)).toEqual([
+      'Error handling melt quote update',
+    ]);
+    expect(h.melt.unsubscribeAllCalls()).toBe(0);
+
+    h.activity.setActive(false);
+    h.activity.notify();
+    h.activity.setActive(true);
+    h.activity.notify();
+    await settle();
+    expect(h.melt.unsubscribeAllCalls()).toBe(1);
   });
 });
