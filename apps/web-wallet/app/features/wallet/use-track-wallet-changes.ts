@@ -15,7 +15,6 @@ import {
   useCashuReceiveQuoteChangeHandlers,
 } from '../receive/cashu-receive-quote-hooks';
 import {
-  usePendingSparkReceiveQuotesCache,
   useSparkReceiveQuoteCache,
   useSparkReceiveQuoteChangeHandlers,
 } from '../receive/spark-receive-quote-hooks';
@@ -63,7 +62,8 @@ type SagaOnlyEvent =
   | 'spark-send-quote.created'
   | 'spark-send-quote.updated'
   | 'cashu-send-quote.created'
-  | 'cashu-send-quote.updated';
+  | 'cashu-send-quote.updated'
+  | 'spark-receive-quote.created';
 
 export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
@@ -80,7 +80,6 @@ export const useTrackWalletChanges = () => {
   const cashuSendSwapCache = useCashuSendSwapCache();
   const contactsCache = useContactsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
   const userCache = useUserCache();
 
   const handlers = {
@@ -103,7 +102,6 @@ export const useTrackWalletChanges = () => {
     cashuSendSwapCache.invalidate();
     contactsCache.invalidate();
     sparkReceiveQuoteCache.invalidate();
-    pendingSparkReceiveQuotesCache.invalidate();
     userCache.invalidate();
   });
   const [failed, setFailed] = useState(false);

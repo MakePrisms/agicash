@@ -374,35 +374,6 @@ export function useGetCashuAccount() {
   return useGetAccount('cashu');
 }
 
-/**
- * Hook to get the method which returns the cashu account matching a mint URL and currency, or null if not found.
- * @returns A function that takes a mint URL and currency and returns the matching cashu account or null.
- */
-export function useGetCashuAccountByMintUrlAndCurrency() {
-  const accountsCache = useAccountsCache();
-
-  return useCallback(
-    (mintUrl: string, currency: Currency) =>
-      accountsCache
-        .getAll()
-        ?.find(
-          (a): a is CashuAccount =>
-            a.type === 'cashu' &&
-            a.mintUrl === mintUrl &&
-            a.currency === currency,
-        ) ?? null,
-    [accountsCache],
-  );
-}
-
-/**
- * Hook to get the method which returns the spark account from the cache or throws an error if not found.
- * @returns The method which returns the spark account or throws an error if the account is not found or if the account type is not spark.
- */
-export function useGetSparkAccount() {
-  return useGetAccount('spark');
-}
-
 export function useDefaultAccount() {
   const defaultCurrency = useUser((x) => x.defaultCurrency);
   const { data: accounts } = useAccounts({ currency: defaultCurrency });
@@ -482,21 +453,4 @@ export function useBalance(currency: Currency) {
     return accountBalance !== null ? acc.add(accountBalance) : acc;
   }, Money.zero(currency));
   return balance;
-}
-
-/**
- * Hook that returns a selector function to filter out items with offline accounts.
- */
-export function useSelectItemsWithOnlineAccount() {
-  const accountsCache = useAccountsCache();
-
-  return useCallback(
-    <T extends { accountId: string }>(items: T[]): T[] => {
-      return items.filter((item) => {
-        const account = accountsCache.get(item.accountId);
-        return account?.isOnline;
-      });
-    },
-    [accountsCache],
-  );
 }

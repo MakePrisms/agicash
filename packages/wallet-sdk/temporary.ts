@@ -58,7 +58,6 @@ export {
   getAllMintKeysets,
   getCashuPrivateKey,
   getCashuSeed,
-  getInitializedCashuWallet,
   getMintAuthProvider,
   getMintInfo,
   getTokenHash,
@@ -109,8 +108,6 @@ export { ContactRepository } from './domain/contacts/contact-repository';
 export { TransactionRepository } from './domain/transactions/transaction-repository';
 export { CashuTokenMeltDataSchema } from './domain/receive/cashu-token-melt-data';
 export { SparkReceiveQuoteSchema } from './domain/receive/spark-receive-quote';
-export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
-export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
 export {
   computeQuoteExpiry,
   getAmountAndFee,
