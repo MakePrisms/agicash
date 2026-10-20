@@ -1,4 +1,3 @@
-import { JoinBetaButton } from '../components/join-beta-button';
 import { MarketingCard } from '../components/marketing-card';
 import { SectionLabel } from '../components/section-label';
 
@@ -20,9 +19,6 @@ export function CtaSection() {
             Agicash is in public beta. Join now to experience the best in
             bitcoin.
           </p>
-          <div className="mt-7 flex justify-center">
-            <JoinBetaButton size="lg" />
-          </div>
         </MarketingCard>
       </div>
     </section>
