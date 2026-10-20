@@ -1,4 +1,4 @@
-import { Clock, GiftIcon, Info, Scan, UserCircle2 } from 'lucide-react';
+import { Clock, GiftIcon, Scan, UserCircle2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
@@ -118,14 +118,7 @@ export default function Index() {
         </PageHeaderItem>
       </PageHeader>
 
-      <div className="flex w-full items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm sm:max-w-sm">
-        <Info className="size-4 shrink-0 text-muted-foreground" />
-        <p className="text-balance">
-          Agicash has shut down its services effective October 1, 2026.
-        </p>
-      </div>
-
-      <PageContent className="mx-auto items-center justify-between pt-12 sm:justify-center sm:gap-32 sm:py-0">
+      <PageContent className="mx-auto items-center justify-between pt-20 sm:justify-center sm:gap-32 sm:py-0">
         <div className={cn(isPwa && 'pt-[30px]')}>
           <MoneyWithConvertedAmount
             money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
