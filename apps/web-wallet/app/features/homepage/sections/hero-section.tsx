@@ -5,7 +5,6 @@ import mariposa from '~/assets/gift-cards/mariposa.agi.cash.webp';
 import pinkOwl from '~/assets/gift-cards/pinkowl.agi.cash.webp';
 import pubkey from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import epicurean from '~/assets/gift-cards/theepicureantrader.agi.cash.webp';
-import { JoinBetaButton } from '../components/join-beta-button';
 
 const cards = [
   {
@@ -243,10 +242,6 @@ export function HeroSection() {
             Buy, send and spend bitcoin gift cards from your favorite merchants.
             All on the most advanced Bitcoin wallet.
           </p>
-
-          <div className="mt-9" style={{ animationDelay: '240ms' }}>
-            <JoinBetaButton size="lg" />
-          </div>
 
           <div
             className="mt-8 font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]"
